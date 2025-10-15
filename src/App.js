@@ -1,37 +1,32 @@
-import React from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
+// App.js
 import { BrowserRouter as Router } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import Layout from './components/layout/Layout';
 import AppRoutes from './routes/AppRoutes';
-import './App.css';
+import "./App.css"
+import { AuthProvider } from './contexts/authContext';
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#FFD700',
+      main: '#FF6B35',
     },
     secondary: {
-      main: '#764ba2',
+      main: '#FFD700',
     },
-    background: {
-      default: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
   },
 });
 
 function App() {
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <Layout>
-          <AppRoutes />
-        </Layout>
-      </Router>
+      <AuthProvider> {/* Esto debe envolver todo */}
+        <Router>
+          <Layout>
+            <AppRoutes />
+          </Layout>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

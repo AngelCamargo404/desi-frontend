@@ -23,13 +23,38 @@ const Footer = () => {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap',
+          // Centrado para dispositivos móviles
+          '@media (max-width: 768px)': {
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: 2,
+            textAlign: 'center'
+          }
         }}>
-          <Typography variant="body2" color="white">
-            © 2024 Lucky Raffle. Todos los derechos reservados.
+          <Typography 
+            variant="body2" 
+            color="white"
+            sx={{
+              '@media (max-width: 768px)': {
+                order: 2 // Cambia el orden para móviles
+              }
+            }}
+          >
+            © 2025 Gana con Desi. Todos los derechos reservados.
           </Typography>
           
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 2,
+              '@media (max-width: 768px)': {
+                order: 1, // Cambia el orden para móviles
+                justifyContent: 'center'
+              }
+            }}
+          >
             <IconButton 
               href="https://instagram.com" 
               target="_blank"

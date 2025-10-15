@@ -7,6 +7,14 @@ import {
 } from '@mui/material';
 
 const ProgressBar = ({ progress = 65 }) => {
+  // Función para formatear números con máximo 2 decimales
+  const formatPercentage = (value) => {
+    return Number(value).toFixed(2);
+  };
+
+  const formattedProgress = formatPercentage(progress);
+  const formattedRemaining = formatPercentage(100 - progress);
+
   return (
     <Paper 
       elevation={3} 
@@ -37,11 +45,11 @@ const ProgressBar = ({ progress = 65 }) => {
           />
         </Box>
         <Typography variant="body2" sx={{ color: '#333', fontWeight: 'bold', minWidth: 40 }}>
-          {progress}%
+          {formattedProgress}%
         </Typography>
       </Box>
       <Typography variant="body2" sx={{ color: '#666' }}>
-        {100 - progress}% de tickets disponibles
+        {formattedRemaining}% de tickets disponibles
       </Typography>
     </Paper>
   );

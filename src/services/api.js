@@ -1,16 +1,15 @@
+// services/api.js - VERIFICAR QUE ESTÉ CONFIGURADO CORRECTAMENTE
 import axios from 'axios';
 
-// Configuración base de axios
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
-  timeout: 10000,
+  timeout: 30000, // Aumentar timeout para desarrollo
 });
 
 // Interceptor para requests
 api.interceptors.request.use(
   (config) => {
-    // Puedes agregar tokens de autenticación aquí
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('adminToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -25,8 +24,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Manejo centralizado de errores
-    console.error('API Error:', error);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );

@@ -7,53 +7,246 @@ import {
   Typography,
   Button,
   Box,
-  Chip
+  Chip,
+  CircularProgress,
+  Alert,
+  CardMedia,
+  Modal,
+  IconButton
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { Casino, Star, LocalAtm, Rocket, Whatshot } from '@mui/icons-material';
+import { Casino, Star, LocalAtm, Rocket, Whatshot, ZoomIn, Close } from '@mui/icons-material';
 import ProgressBar from '../../components/ui/ProgressBar';
 import WhatsAppButton from '../../components/ui/WhatsappButton';
 import VerificationModal from '../../components/ui/VerificationModal';
+import { useEffect } from 'react';
+import activeRaffleApi from '../../services/activeRaffleApi';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [rifaData, setRifaData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [imageModalOpen, setImageModalOpen] = useState(false);
 
-  const rifaData = {
-    titulo: "Gran Rifa",
-    descripcion: "Participa por el premio mayor de $1,000,000. ¡No pierdas esta oportunidad única de cambiar tu vida!",
-    precioTicket: 50,
-    minTickets: 2,
-    ticketsVendidos: 650,
-    ticketsTotales: 1000
+  useEffect(() => {
+    cargarRifaActiva();
+  }, []);
+
+  const cargarRifaActiva = async () => {
+    try {
+      const response = await activeRaffleApi.obtenerRifaActiva();
+      if (response.success) {
+        setRifaData(response.data);
+      } else {
+        setError('No hay rifa activa en este momento');
+      }
+    } catch (error) {
+      setError(error.message || 'Error al cargar la rifa activa');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ 
+        py: 4, 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '50vh',
+        textAlign: 'center' // Centrado en móvil
+      }}>
+        <CircularProgress size={60} sx={{ color: '#FF6B35' }} />
+      </Container>
+    );
+  }
+
+  if (error || !rifaData) {
+    return (
+      <Container maxWidth="lg" sx={{ 
+        py: 4, 
+        textAlign: 'center' // Ya estaba centrado
+      }}>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="h6">
+            No hay rifas activas en este momento
+          </Typography>
+          <Typography variant="body2">
+            Vuelve pronto para participar en nuestras próximas rifas
+          </Typography>
+        </Alert>
+      </Container>
+    );
+  }
+
   const progress = (rifaData.ticketsVendidos / rifaData.ticketsTotales) * 100;
+  const tieneImagen = rifaData.imagen && rifaData.imagen.url;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ 
+      py: 4,
+      textAlign: { xs: 'center', md: 'left' } // Centrado en móvil, izquierda en desktop
+    }}>
       {/* Banner Principal */}
       <Card sx={{ 
         mb: 4, 
-        background: 'linear-gradient(45deg, #FF6B35 0%, #FF8E53 50%, #FF6B35 100%)',
-        color: 'white',
+        background: tieneImagen 
+          ? 'transparent'
+          : 'linear-gradient(45deg, #FF6B35 0%, #FF8E53 50%, #FF6B35 100%)',
+        color: tieneImagen ? 'inherit' : 'white',
         position: 'relative',
         overflow: 'hidden',
-        border: '2px solid #FFD700',
-        boxShadow: '0 10px 30px rgba(255, 107, 53, 0.4)'
+        border: tieneImagen ? 'none' : '2px solid #FFD700',
+        boxShadow: tieneImagen ? 'none' : '0 10px 30px rgba(255, 107, 53, 0.4)',
+        textAlign: 'center' // Centrado para el contenido del banner
       }}>
-        <CardContent sx={{ p: 4, textAlign: 'center' }}>
-          <Casino sx={{ fontSize: 60, mb: 2, filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))' }} />
-          <Typography variant="h3" gutterBottom sx={{ fontWeight: 'bold', textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
-            {rifaData.titulo}
-          </Typography>
-          <Typography variant="h6" sx={{ opacity: 0.95, maxWidth: '800px', margin: '0 auto' }}>
-            {rifaData.descripcion}
-          </Typography>
-        </CardContent>
+        {tieneImagen ? (
+          <Box sx={{ position: 'relative' }}>
+            <CardMedia
+              component="img"
+              height="300"
+              image={rifaData.imagen.url}
+              alt={rifaData.titulo}
+              sx={{
+                objectFit: 'cover',
+                width: '100%',
+                borderRadius: '12px',
+                cursor: 'pointer'
+              }}
+              onClick={() => setImageModalOpen(true)}
+            />
+            <IconButton
+              sx={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                },
+                zIndex: 2
+              }}
+              onClick={() => setImageModalOpen(true)}
+              size="large"
+            >
+              <ZoomIn />
+            </IconButton>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                color: 'white',
+                textAlign: 'center',
+                p: 3,
+                borderRadius: '12px'
+              }}
+            >
+              <Casino sx={{ fontSize: 60, mb: 2, filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))' }} />
+              <Typography variant="h3" gutterBottom sx={{ 
+                fontWeight: 'bold', 
+                textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' } // Responsive
+              }}>
+                {rifaData.titulo}
+              </Typography>
+              <Typography variant="h6" sx={{ 
+                opacity: 0.95, 
+                maxWidth: '800px', 
+                margin: '0 auto', 
+                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' } // Responsive
+              }}>
+                {rifaData.descripcion}
+              </Typography>
+            </Box>
+          </Box>
+        ) : (
+          <CardContent sx={{ p: 4, textAlign: 'center' }}>
+            <Casino sx={{ fontSize: 60, mb: 2, filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))' }} />
+            <Typography variant="h3" gutterBottom sx={{ 
+              fontWeight: 'bold', 
+              textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
+              fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' } // Responsive
+            }}>
+              {rifaData.titulo}
+            </Typography>
+            <Typography variant="h6" sx={{ 
+              opacity: 0.95, 
+              maxWidth: '800px', 
+              margin: '0 auto',
+              fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' } // Responsive
+            }}>
+              {rifaData.descripcion}
+            </Typography>
+          </CardContent>
+        )}
       </Card>
 
-      <Grid container spacing={3}>
+      {/* Modal para visualizar imagen completa */}
+      <Modal
+        open={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(8px)'
+        }}
+      >
+        <Box sx={{
+          position: 'relative',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+          outline: 'none'
+        }}>
+          <IconButton
+            sx={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              color: 'white',
+              '&:hover': {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              },
+              zIndex: 1
+            }}
+            onClick={() => setImageModalOpen(false)}
+            size="large"
+          >
+            <Close />
+          </IconButton>
+          
+          <CardMedia
+            component="img"
+            image={rifaData.imagen.url}
+            alt={rifaData.titulo}
+            sx={{
+              objectFit: 'contain',
+              width: '100%',
+              height: '100%',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              borderRadius: '8px',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+            }}
+          />
+        </Box>
+      </Modal>
+
+      <Grid container spacing={3} justifyContent={{ xs: 'center', md: 'flex-start' }}>
         {/* Información de la Rifa */}
         <Grid item xs={12} md={8}>
           <ProgressBar progress={progress} />
@@ -63,16 +256,26 @@ const Dashboard = () => {
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(10px)',
             border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+            textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
           }}>
             <CardContent>
-              <Typography variant="h5" gutterBottom sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+              <Typography variant="h5" gutterBottom sx={{ 
+                color: '#2D3748', 
+                fontWeight: 'bold',
+                textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
+              }}>
                 Detalles de la Rifa
               </Typography>
               
-              <Grid container spacing={2}>
+              <Grid container spacing={2} justifyContent={{ xs: 'center', md: 'flex-start' }}>
                 <Grid item xs={12} sm={6}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    mb: 2,
+                    justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                  }}>
                     <LocalAtm sx={{ mr: 1, color: '#FF6B35', fontSize: 30 }} />
                     <Box>
                       <Typography variant="body2" sx={{ color: '#718096', fontWeight: 'medium' }}>
@@ -85,7 +288,12 @@ const Dashboard = () => {
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    mb: 2,
+                    justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                  }}>
                     <Star sx={{ mr: 1, color: '#FF6B35', fontSize: 30 }} />
                     <Box>
                       <Typography variant="body2" sx={{ color: '#718096', fontWeight: 'medium' }}>
@@ -99,7 +307,34 @@ const Dashboard = () => {
                 </Grid>
               </Grid>
 
-              <Box sx={{ mt: 2 }}>
+              {rifaData.fechaSorteo && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  mb: 2,
+                  justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                }}>
+                  <Casino sx={{ mr: 1, color: '#FF6B35', fontSize: 30 }} />
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#718096', fontWeight: 'medium' }}>
+                      Fecha del sorteo
+                    </Typography>
+                    <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                      {new Date(rifaData.fechaSorteo).toLocaleDateString('es-ES', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+
+              <Box sx={{ 
+                mt: 2, 
+                display: 'flex', 
+                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+              }}>
                 <Chip 
                   label={`${rifaData.ticketsVendidos}/${rifaData.ticketsTotales} tickets vendidos`}
                   color="primary"
@@ -123,10 +358,16 @@ const Dashboard = () => {
             backdropFilter: 'blur(10px)',
             border: '1px solid rgba(255, 255, 255, 0.2)',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            mb: 2
+            mb: 2,
+            textAlign: 'center' // Ya estaba centrado
           }}>
             <CardContent sx={{ textAlign: 'center', p: 3 }}>
-              <Typography variant="h5" gutterBottom sx={{ color: '#2D3748', fontWeight: 'bold', mb: 3 }}>
+              <Typography variant="h5" gutterBottom sx={{ 
+                color: '#2D3748', 
+                fontWeight: 'bold', 
+                mb: 3,
+                textAlign: 'center' // Aseguramos centrado
+              }}>
                 ¡Tu Momento de Ganar!
               </Typography>
               
@@ -141,7 +382,7 @@ const Dashboard = () => {
                 sx={{ 
                   mb: 2,
                   py: 2,
-                  fontSize: '1.2rem',
+                  fontSize: { xs: '1rem', sm: '1.2rem' }, // Responsive
                   fontWeight: 'bold',
                   background: 'linear-gradient(45deg, #FF6B35 0%, #FF8E53 50%, #FF6B35 100%)',
                   backgroundSize: '200% 200%',
@@ -187,7 +428,12 @@ const Dashboard = () => {
                 Comprar Ticket Ahora
               </Button>
               
-              <Typography variant="body2" sx={{ color: '#718096', mb: 2, fontStyle: 'italic' }}>
+              <Typography variant="body2" sx={{ 
+                color: '#718096', 
+                mb: 2, 
+                fontStyle: 'italic',
+                textAlign: 'center' // Aseguramos centrado
+              }}>
                 ¡No esperes más para cambiar tu suerte!
               </Typography>
               
@@ -217,25 +463,45 @@ const Dashboard = () => {
           <Card sx={{ 
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)'
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
           }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+              <Typography variant="h6" gutterBottom sx={{ 
+                color: '#2D3748', 
+                fontWeight: 'bold',
+                textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
+              }}>
                 ¿Por Qué Participar?
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                mb: 1,
+                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+              }}>
                 <Star sx={{ color: '#FF6B35', mr: 1, fontSize: 20 }} />
                 <Typography variant="body2" sx={{ color: '#666' }}>
                   Oportunidad única de ganar
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                mb: 1,
+                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+              }}>
                 <Star sx={{ color: '#FF6B35', mr: 1, fontSize: 20 }} />
                 <Typography variant="body2" sx={{ color: '#666' }}>
                   Premios garantizados
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                mb: 1,
+                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+              }}>
                 <Star sx={{ color: '#FF6B35', mr: 1, fontSize: 20 }} />
                 <Typography variant="body2" sx={{ color: '#666' }}>
                   Proceso 100% transparente
@@ -251,6 +517,7 @@ const Dashboard = () => {
       <VerificationModal 
         open={verificationModalOpen}
         onClose={() => setVerificationModalOpen(false)}
+        rifaId={rifaData?._id} // Pasar el ID de la rifa activa
       />
     </Container>
   );

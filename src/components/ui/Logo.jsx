@@ -1,4 +1,5 @@
 import { Box } from '@mui/material';
+import logoImage from '../../assets/images/gana-con-desi-logo.jpeg';
 
 const Logo = ({ size = 50, borderWidth = 3, borderColor = '#FFD700' }) => {
   return (
@@ -7,7 +8,6 @@ const Logo = ({ size = 50, borderWidth = 3, borderColor = '#FFD700' }) => {
         width: size,
         height: size,
         borderRadius: '50%',
-        border: `${borderWidth}px solid ${borderColor}`,
         overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
@@ -23,7 +23,7 @@ const Logo = ({ size = 50, borderWidth = 3, borderColor = '#FFD700' }) => {
       }}
     >
       <img 
-        src="/src/assets/images/gana-con-desi-logo.jpeg" 
+        src={logoImage}
         alt="Gana Con Desi Logo" 
         onError={(e) => {
           // Fallback si la imagen no carga
