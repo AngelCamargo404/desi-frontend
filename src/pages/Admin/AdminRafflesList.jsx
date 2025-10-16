@@ -1,4 +1,4 @@
-// src/pages/admin/AdminRafflesList.jsx
+// src/pages/admin/AdminRafflesList.jsx - ACTUALIZADO con fecha de sorteo
 import React, { useState, useEffect } from 'react';
 import {
   Container,
@@ -36,7 +36,9 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Avatar,
-  InputAdornment
+  InputAdornment,
+  FormControlLabel,
+  Switch
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -56,13 +58,16 @@ import {
   PhotoCamera,
   Numbers,
   EmojiEvents, 
-  Celebration
+  Celebration,
+  Event
 } from '@mui/icons-material';
 import raffleApi from '../../services/raffleApi';
 import activeRaffleApi from '../../services/activeRaffleApi';
 import prizeApi from '../../services/prizeApi';
 import winnerApi from '../../services/winnerApi';
 import ModalGanador from '../../components/modals/ModalGanador';
+import ModalMultiplesGanadores from '../../components/modals/ModalMultiplesGanadores';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
 
 const AdminRafflesList = () => {
   const navigate = useNavigate();
@@ -96,7 +101,7 @@ const AdminRafflesList = () => {
     posicion: 1
   });
 
-  // Estado para formulario de edición de rifa
+  // Estado para formulario de edición de rifa - ACTUALIZADO con fecha de sorteo
   const [raffleForm, setRaffleForm] = useState({
     titulo: '',
     descripcion: '',
@@ -105,15 +110,24 @@ const AdminRafflesList = () => {
     ticketsTotales: '',
     estado: '',
     imagen: null,
-    nuevaImagen: null
+    nuevaImagen: null,
+    fechaSorteo: '',
+    tieneFechaSorteo: false
   });
 
   // Estado para vista previa de imagen
   const [imagePreview, setImagePreview] = useState(null);
 
-  const [winnerModalOpen, setWinnerModalOpen] = useState(false);
-  const [selectedWinner, setSelectedWinner] = useState(null);
-  const [selectingWinner, setSelectingWinner] = useState(false);
+  const [winnersModalOpen, setWinnersModalOpen] = useState(false);
+  const [selectedWinners, setSelectedWinners] = useState([]);
+  const [selectingWinners, setSelectingWinners] = useState(false);
+
+  const [sorteoConfirmModal, setSorteoConfirmModal] = useState({
+    open: false,
+    raffleId: null,
+    numPremios: 0,
+    numTickets: 0
+  });
 
   useEffect(() => {
     cargarDatos();
@@ -155,21 +169,91 @@ const AdminRafflesList = () => {
     }
   };
 
-  const handleSelectWinner = async (raffleId) => {
-    setSelectingWinner(true);
+  const handleSelectMultipleWinners = async (raffleId) => {
     try {
-      const response = await winnerApi.seleccionarGanadorAleatorio(raffleId);
+      // Primero cargar los premios para saber cuántos ganadores se necesitan
+      const premiosResponse = await prizeApi.obtenerPrizesPorRifa(raffleId);
+      
+      if (!premiosResponse.success || premiosResponse.data.length === 0) {
+        setError('La rifa no tiene premios configurados');
+        return;
+      }
+
+      const numPremios = premiosResponse.data.length;
+
+      // Abrir modal de confirmación
+      handleOpenSorteoConfirm(raffleId, numPremios);
+
+    } catch (error) {
+      setError(error.message || 'Error al cargar los premios de la rifa');
+    }
+  };
+
+  const handleOpenSorteoConfirm = async (raffleId) => {
+    try {
+      // Cargar información de la rifa y premios
+      const premiosResponse = await prizeApi.obtenerPrizesPorRifa(raffleId);
+      
+      if (!premiosResponse.success || premiosResponse.data.length === 0) {
+        setError('La rifa no tiene premios configurados');
+        return;
+      }
+
+      const numPremios = premiosResponse.data.length;
+      
+      // Obtener información de tickets vendidos
+      const rifaInfo = raffles.find(r => r._id === raffleId);
+      const numTickets = rifaInfo?.ticketsVendidos || 0;
+
+      if (numTickets < numPremios) {
+        setError(`No hay suficientes tickets vendidos (${numTickets}) para asignar ${numPremios} premios`);
+        return;
+      }
+
+      setSorteoConfirmModal({
+        open: true,
+        raffleId,
+        numPremios,
+        numTickets
+      });
+
+    } catch (error) {
+      setError(error.message || 'Error al preparar el sorteo');
+    }
+  };
+
+  // Función para cerrar el modal de confirmación de sorteo
+  const handleCloseSorteoConfirm = () => {
+    setSorteoConfirmModal({
+      open: false,
+      raffleId: null,
+      numPremios: 0,
+      numTickets: 0
+    });
+  };
+
+  const handleConfirmSorteo = async () => {
+    const { raffleId, numPremios } = sorteoConfirmModal;
+    
+    if (!raffleId) return;
+
+    setSelectingWinners(true);
+    try {
+      const response = await winnerApi.seleccionarMultiplesGanadores(raffleId);
+      
       if (response.success) {
-        setSelectedWinner(response.data);
-        setWinnerModalOpen(true);
-        setSuccess('¡Ganador seleccionado exitosamente!');
+        setSelectedWinners(response.data);
+        setWinnersModalOpen(true);
+        setSuccess(`¡${response.data.length} ganadores seleccionados exitosamente para ${numPremios} premios!`);
       } else {
-        setError(response.message || 'Error al seleccionar el ganador');
+        setError(response.message || 'Error al seleccionar los ganadores');
       }
     } catch (error) {
-      setError(error.message || 'Error al seleccionar el ganador');
+      console.log(error);
+      setError(error.message || 'Error al seleccionar los ganadores');
     } finally {
-      setSelectingWinner(false);
+      setSelectingWinners(false);
+      handleCloseSorteoConfirm();
     }
   };
 
@@ -207,9 +291,17 @@ const AdminRafflesList = () => {
     setEditPrizeModalOpen(true);
   };
 
-  // Función para abrir modal de edición de rifa
+  // Función para abrir modal de edición de rifa - ACTUALIZADA con fecha de sorteo
   const handleOpenEditRaffle = (raffle) => {
     setEditingRaffle(raffle);
+    
+    // Formatear la fecha para el input datetime-local si existe
+    let fechaFormateada = '';
+    if (raffle.fechaSorteo) {
+      const fecha = new Date(raffle.fechaSorteo);
+      fechaFormateada = fecha.toISOString().slice(0, 16);
+    }
+
     setRaffleForm({
       titulo: raffle.titulo || '',
       descripcion: raffle.descripcion || '',
@@ -218,7 +310,9 @@ const AdminRafflesList = () => {
       ticketsTotales: raffle.ticketsTotales || '',
       estado: raffle.estado || 'activa',
       imagen: raffle.imagen || null,
-      nuevaImagen: null
+      nuevaImagen: null,
+      fechaSorteo: fechaFormateada,
+      tieneFechaSorteo: !!raffle.fechaSorteo
     });
     setImagePreview(raffle.imagen?.url || null);
     setEditRaffleModalOpen(true);
@@ -242,6 +336,24 @@ const AdminRafflesList = () => {
     }
   };
 
+  // NUEVO: Manejar el toggle de fecha de sorteo
+  const handleToggleFechaSorteo = (event) => {
+    const tieneFecha = event.target.checked;
+    setRaffleForm(prev => ({
+      ...prev,
+      tieneFechaSorteo: tieneFecha,
+      fechaSorteo: tieneFecha ? prev.fechaSorteo : ''
+    }));
+  };
+
+  // NUEVO: Manejar cambio de fecha
+  const handleFechaSorteoChange = (event) => {
+    setRaffleForm(prev => ({
+      ...prev,
+      fechaSorteo: event.target.value
+    }));
+  };
+
   // Función para guardar premio editado
   const handleSavePrize = async () => {
     try {
@@ -263,11 +375,25 @@ const AdminRafflesList = () => {
     }
   };
 
-  // Función para guardar rifa editada
+  // Función para guardar rifa editada - ACTUALIZADA con fecha de sorteo
   const handleSaveRaffle = async () => {
     try {
       setLoading(true);
       
+      // Validar fecha si está activada
+      if (raffleForm.tieneFechaSorteo && !raffleForm.fechaSorteo) {
+        throw new Error('Debe seleccionar una fecha de sorteo');
+      }
+
+      // Validar que la fecha no sea en el pasado si está activada
+      if (raffleForm.tieneFechaSorteo && raffleForm.fechaSorteo) {
+        const fechaSorteo = new Date(raffleForm.fechaSorteo);
+        const ahora = new Date();
+        if (fechaSorteo <= ahora) {
+          throw new Error('La fecha del sorteo debe ser futura');
+        }
+      }
+
       const raffleData = {
         ...raffleForm,
         precioTicket: parseFloat(raffleForm.precioTicket),
@@ -275,9 +401,18 @@ const AdminRafflesList = () => {
         ticketsTotales: parseInt(raffleForm.ticketsTotales)
       };
 
-      // Eliminar campos de imagen del objeto principal
+      // Solo incluir fechaSorteo si está activada y tiene valor
+      if (raffleForm.tieneFechaSorteo && raffleForm.fechaSorteo) {
+        raffleData.fechaSorteo = raffleForm.fechaSorteo;
+      } else {
+        // Si no está activada, eliminar la fecha de sorteo
+        raffleData.fechaSorteo = null;
+      }
+
+      // Eliminar campos temporales del objeto principal
       delete raffleData.imagen;
       delete raffleData.nuevaImagen;
+      delete raffleData.tieneFechaSorteo;
 
       // 1. Primero actualizar los datos de la rifa
       const response = await raffleApi.actualizarRaffle(editingRaffle._id, raffleData);
@@ -305,7 +440,7 @@ const AdminRafflesList = () => {
     } finally {
       setLoading(false);
     }
-};
+  };
 
   // Función para eliminar premio
   const handleDeletePrize = async () => {
@@ -358,21 +493,6 @@ const AdminRafflesList = () => {
     }
   };
 
-  const handleDesactivarRifa = async () => {
-    setActivating(true);
-    try {
-      const response = await activeRaffleApi.desactivarTodas();
-      if (response.success) {
-        setActiveRaffle(null);
-        setSuccess('Rifa desactivada exitosamente');
-      }
-    } catch (error) {
-      setError(error.message || 'Error al desactivar la rifa');
-    } finally {
-      setActivating(false);
-    }
-  };
-
   const openConfirmDialog = (raffle, type) => {
     setConfirmDialog({
       open: true,
@@ -415,10 +535,63 @@ const AdminRafflesList = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
 
-      <ModalGanador
-        open={winnerModalOpen}
-        onClose={() => setWinnerModalOpen(false)}
-        winner={selectedWinner}
+      <ModalMultiplesGanadores
+        open={winnersModalOpen}
+        onClose={() => setWinnersModalOpen(false)}
+        winners={selectedWinners}
+      />
+
+      <ConfirmationModal
+        open={sorteoConfirmModal.open}
+        onClose={handleCloseSorteoConfirm}
+        onConfirm={handleConfirmSorteo}
+        title="Confirmar Sorteo de Múltiples Ganadores"
+        message={
+          <Box sx={{ lineHeight: 1.6 }}>
+            <Typography variant="body1" paragraph sx={{ mb: 2 }}>
+              ¿Está seguro de que desea realizar el sorteo para <strong>{sorteoConfirmModal.numPremios} premios</strong> de esta rifa?
+            </Typography>
+            
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FF6B35', mb: 1 }}>
+                Detalles del sorteo:
+              </Typography>
+              <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                  Se seleccionarán <strong>{sorteoConfirmModal.numPremios} ganadores distintos</strong>
+                </Typography>
+                <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                  Se asignará <strong>un premio diferente a cada ganador</strong>
+                </Typography>
+                <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                  El primer premio será designado como <strong>"Ganador Principal"</strong>
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ mb: 2, p: 1.5, backgroundColor: 'rgba(255, 107, 53, 0.1)', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FF6B35' }}>
+                ⚠️ Esta acción no se puede deshacer
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1, borderTop: '1px solid rgba(0, 0, 0, 0.1)' }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                Tickets participantes:
+              </Typography>
+              <Chip 
+                label={sorteoConfirmModal.numTickets} 
+                size="small" 
+                color="primary"
+                variant="outlined"
+              />
+            </Box>
+          </Box>
+        }
+        confirmText="Realizar Sorteo"
+        cancelText="Cancelar"
+        loading={selectingWinners}
+        severity="warning"
       />
 
       {/* Snackbars para feedback */}
@@ -540,6 +713,15 @@ const AdminRafflesList = () => {
                           <Typography variant="body2" sx={{ color: '#718096' }}>
                             {raffle.descripcion.substring(0, 60)}...
                           </Typography>
+                          {/* NUEVO: Mostrar fecha de sorteo si existe */}
+                          {raffle.fechaSorteo && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                              <Event sx={{ fontSize: 14, color: '#FF6B35', mr: 0.5 }} />
+                              <Typography variant="caption" sx={{ color: '#FF6B35', fontWeight: 'bold' }}>
+                                Sorteo: {new Date(raffle.fechaSorteo).toLocaleDateString('es-ES')}
+                              </Typography>
+                            </Box>
+                          )}
                         </Box>
                       </Box>
                     </TableCell>
@@ -640,13 +822,13 @@ const AdminRafflesList = () => {
                           </Button>
                         </Tooltip>
 
-                        <Tooltip title="Seleccionar Ganador Aleatorio">
+                        <Tooltip title="Seleccionar Ganadores para Todos los Premios">
                           <Button
                             variant="outlined"
                             size="small"
                             startIcon={<EmojiEvents />}
-                            onClick={() => handleSelectWinner(raffle._id)}
-                            disabled={selectingWinner || raffle.ticketsVendidos === 0}
+                            onClick={() => handleSelectMultipleWinners(raffle._id)}
+                            disabled={selectingWinners || raffle.ticketsVendidos === 0}
                             sx={{ 
                               fontSize: '0.75rem',
                               borderColor: '#FFD700',
@@ -657,7 +839,7 @@ const AdminRafflesList = () => {
                               }
                             }}
                           >
-                            {selectingWinner ? 'Seleccionando...' : 'Ganador'}
+                            {selectingWinners ? 'Seleccionando...' : 'Sortear'}
                           </Button>
                         </Tooltip>
 
@@ -883,7 +1065,7 @@ const AdminRafflesList = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Modal de Edición de Rifa */}
+      {/* Modal de Edición de Rifa - ACTUALIZADO con fecha de sorteo */}
       <Dialog 
         open={editRaffleModalOpen} 
         onClose={() => setEditRaffleModalOpen(false)}
@@ -939,6 +1121,44 @@ const AdminRafflesList = () => {
                   </Typography>
                 </Box>
               </Box>
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* NUEVA SECCIÓN: Fecha del Sorteo */}
+            <Box sx={{ mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Event sx={{ color: '#FF6B35', mr: 1 }} />
+                <Typography variant="h6" sx={{ color: '#2D3748' }}>
+                  Fecha del Sorteo (Opcional)
+                </Typography>
+              </Box>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={raffleForm.tieneFechaSorteo}
+                    onChange={handleToggleFechaSorteo}
+                    color="primary"
+                  />
+                }
+                label="Establecer fecha de sorteo"
+              />
+
+              {raffleForm.tieneFechaSorteo && (
+                <TextField
+                  fullWidth
+                  label="Fecha y Hora del Sorteo"
+                  type="datetime-local"
+                  value={raffleForm.fechaSorteo}
+                  onChange={handleFechaSorteoChange}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={{ mt: 2 }}
+                  helperText="Selecciona la fecha y hora en la que se realizará el sorteo"
+                />
+              )}
             </Box>
 
             <Divider sx={{ my: 2 }} />

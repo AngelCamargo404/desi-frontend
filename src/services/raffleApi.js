@@ -1,4 +1,4 @@
-// services/raffleApi.js
+// services/raffleApi.js - ACTUALIZADO
 import api from './api';
 
 export const raffleApi = {
@@ -13,6 +13,11 @@ export const raffleApi = {
       formData.append('precioTicket', raffleData.precioTicket);
       formData.append('minTickets', raffleData.minTickets);
       formData.append('ticketsTotales', raffleData.ticketsTotales);
+      
+      // Agregar fecha de sorteo si existe
+      if (raffleData.fechaSorteo) {
+        formData.append('fechaSorteo', raffleData.fechaSorteo);
+      }
       
       // Agregar imagen si existe
       if (raffleData.imagen) {
@@ -31,7 +36,7 @@ export const raffleApi = {
     }
   },
 
-  // Obtener todas las rifas
+  // Los demás métodos se mantienen igual...
   obtenerRaffles: async (pagina = 1, limite = 10, filtros = {}) => {
     try {
       console.log('🔍 Fetching raffles with params:', { pagina, limite, filtros });

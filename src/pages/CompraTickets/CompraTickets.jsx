@@ -46,6 +46,7 @@ import {
 } from '@mui/icons-material';
 import ticketsApi from '../../services/ticketsApi';
 import activeRaffleApi from '../../services/activeRaffleApi';
+import WhatsAppButton from '../../components/ui/WhatsappButton';
 
 const CompraTickets = () => {
   const navigate = useNavigate();
@@ -980,7 +981,7 @@ const CompraTickets = () => {
                 <strong>📞 Soporte al Cliente</strong><br />
                 Para cualquier duda o consulta sobre tu compra,<br />
                 contacta a nuestro equipo de soporte:<br />
-                <strong>WhatsApp: +1 234 567 8900</strong><br />
+                <strong>WhatsApp: +58 412-1298675</strong><br />
                 Horario: Lunes a Viernes 9:00 AM - 6:00 PM
               </Typography>
             </Alert>
@@ -1010,6 +1011,7 @@ const CompraTickets = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      <WhatsAppButton />
       {/* Snackbars para feedback */}
       <Snackbar
         open={!!error}

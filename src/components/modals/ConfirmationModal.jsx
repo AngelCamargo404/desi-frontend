@@ -1,4 +1,4 @@
-// src/components/ConfirmationModal.jsx
+// src/components/ConfirmationModal.jsx - ACTUALIZADO
 import React from 'react';
 import {
   Dialog,
@@ -49,6 +49,14 @@ const ConfirmationModal = ({
 
   const severityConfig = getSeverityConfig();
 
+  // Función para renderizar el mensaje (puede ser string o React element)
+  const renderMessage = () => {
+    if (typeof message === 'string') {
+      return <Typography variant="body1">{message}</Typography>;
+    }
+    return message;
+  };
+
   return (
     <Dialog 
       open={open} 
@@ -67,9 +75,7 @@ const ConfirmationModal = ({
       
       <DialogContent>
         <Box sx={{ mt: 1 }}>
-          <Typography variant="body1">
-            {message}
-          </Typography>
+          {renderMessage()}
         </Box>
       </DialogContent>
       

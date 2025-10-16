@@ -4,7 +4,7 @@ import { WhatsApp } from '@mui/icons-material';
 
 const WhatsAppButton = () => {
   const handleWhatsAppClick = () => {
-    const phoneNumber = '1234567890'; // Reemplazar con número real
+    const phoneNumber = '+584121298675'; // Reemplazar con número real
     const message = 'Hola, estoy interesado en la rifa';
     const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
