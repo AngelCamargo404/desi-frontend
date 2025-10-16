@@ -138,12 +138,15 @@ const CompraTickets = () => {
         setLoadingRifa(true);
         setError('');
         
-        console.log('🔄 Cargando rifa activa...');
-        const response = await activeRaffleApi.obtenerInfoRifaActiva();
+  console.log('🔄 Cargando rifa activa...');
+  // Usar endpoint público para obtener la rifa activa (no requiere token)
+  const response = await activeRaffleApi.obtenerRifaActiva();
         
         if (response.success && response.data) {
-          console.log('✅ Rifa activa cargada:', response.data);
-          setRifaData(response.data.raffleId);
+          console.log('✅ Rifa activa cargada (raw):', response.data);
+          // El backend puede devolver directamente el objeto raffle o un objeto { raffleId }
+          const raffle = response.data.raffleId || response.data;
+          setRifaData(raffle);
         } else {
           setError('No hay una rifa activa en este momento');
         }

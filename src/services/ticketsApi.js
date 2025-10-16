@@ -1,5 +1,6 @@
 // services/ticketsApi.js
 import api from './api';
+import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
 export const ticketsApi = {
@@ -7,15 +8,15 @@ export const ticketsApi = {
   comprarTicket: async (ticketData) => {
     try {
       const formData = new FormData();
-      
+
       // Agregar campos básicos
       formData.append('rifaId', ticketData.rifaId);
       formData.append('cantidad', ticketData.cantidad);
       formData.append('metodoPago', ticketData.metodoPago);
       formData.append('referenciaPago', ticketData.referencia);
-      
+
       const transaccionId = `TXN-${uuidv4()}`;
-      
+
       // Agregar datos del comprador Y números de tickets
       const datosCompra = {
         comprador: {
@@ -30,23 +31,30 @@ export const ticketsApi = {
         referenciaPago: ticketData.referencia,
         numerosTickets: ticketData.numerosTickets
       };
-      
+
       formData.append('datosCompra', JSON.stringify(datosCompra));
-      
+
       // Agregar comprobante si existe
       if (ticketData.comprobante) {
         formData.append('comprobante', ticketData.comprobante);
       }
 
-      const response = await api.post('/tickets/comprar', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      // Crear una instancia local de axios sin interceptores para evitar el redirect global en caso de 401
+      const localApi = axios.create({
+        baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+        timeout: 30000
       });
+
+      const response = await localApi.post('/tickets/comprar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
       return response.data;
     } catch (error) {
       console.error('Error en ticketsApi.comprarTicket:', error);
-      throw new Error(error.response?.data?.message || 'Error al comprar el ticket');
+      throw new Error(error.response?.data?.message || error.message || 'Error al comprar el ticket');
     }
   },
 
