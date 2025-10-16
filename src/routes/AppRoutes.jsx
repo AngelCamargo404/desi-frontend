@@ -8,6 +8,7 @@ import AdminRafflesList from '../pages/Admin/AdminRafflesList';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 import AdminRaffleTickets from '../pages/Admin/AdminRaffleTickets';
 import CreateUser from '../pages/Admin/CreateUser';
+import AdminWinnersList from '../pages/Admin/AdminWinnersList';
 
 const AppRoutes = () => {
   return (
@@ -47,6 +48,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute requireAdmin>
             <AdminRaffleTickets />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/winners" 
+        element={
+          <ProtectedRoute requireAdmin>
+            <AdminWinnersList />
           </ProtectedRoute>
         } 
       />

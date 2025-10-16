@@ -54,11 +54,15 @@ import {
   Remove,
   AttachMoney,
   PhotoCamera,
-  Numbers
+  Numbers,
+  EmojiEvents, 
+  Celebration
 } from '@mui/icons-material';
 import raffleApi from '../../services/raffleApi';
 import activeRaffleApi from '../../services/activeRaffleApi';
 import prizeApi from '../../services/prizeApi';
+import winnerApi from '../../services/winnerApi';
+import ModalGanador from '../../components/modals/ModalGanador';
 
 const AdminRafflesList = () => {
   const navigate = useNavigate();
@@ -107,6 +111,10 @@ const AdminRafflesList = () => {
   // Estado para vista previa de imagen
   const [imagePreview, setImagePreview] = useState(null);
 
+  const [winnerModalOpen, setWinnerModalOpen] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState(null);
+  const [selectingWinner, setSelectingWinner] = useState(false);
+
   useEffect(() => {
     cargarDatos();
   }, []);
@@ -144,6 +152,24 @@ const AdminRafflesList = () => {
       setError(error.message || 'Error al cargar los datos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectWinner = async (raffleId) => {
+    setSelectingWinner(true);
+    try {
+      const response = await winnerApi.seleccionarGanadorAleatorio(raffleId);
+      if (response.success) {
+        setSelectedWinner(response.data);
+        setWinnerModalOpen(true);
+        setSuccess('¡Ganador seleccionado exitosamente!');
+      } else {
+        setError(response.message || 'Error al seleccionar el ganador');
+      }
+    } catch (error) {
+      setError(error.message || 'Error al seleccionar el ganador');
+    } finally {
+      setSelectingWinner(false);
     }
   };
 
@@ -388,6 +414,13 @@ const AdminRafflesList = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+
+      <ModalGanador
+        open={winnerModalOpen}
+        onClose={() => setWinnerModalOpen(false)}
+        winner={selectedWinner}
+      />
+
       {/* Snackbars para feedback */}
       <Snackbar open={!!error} autoHideDuration={6000} onClose={handleCloseSnackbar}>
         <Alert severity="error" onClose={handleCloseSnackbar}>
@@ -604,6 +637,27 @@ const AdminRafflesList = () => {
                             sx={{ fontSize: '0.75rem' }}
                           >
                             Detalles
+                          </Button>
+                        </Tooltip>
+
+                        <Tooltip title="Seleccionar Ganador Aleatorio">
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<EmojiEvents />}
+                            onClick={() => handleSelectWinner(raffle._id)}
+                            disabled={selectingWinner || raffle.ticketsVendidos === 0}
+                            sx={{ 
+                              fontSize: '0.75rem',
+                              borderColor: '#FFD700',
+                              color: '#FFD700',
+                              '&:hover': {
+                                backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                                borderColor: '#FFD700'
+                              }
+                            }}
+                          >
+                            {selectingWinner ? 'Seleccionando...' : 'Ganador'}
                           </Button>
                         </Tooltip>
 

@@ -65,6 +65,7 @@ const Header = () => {
   const adminMenuItems = [
     { text: 'Crear Rifa', icon: <Create />, path: '/admin/create-raffle' },
     { text: 'Gestionar Rifas', icon: <ListIcon />, path: '/admin/raffles' },
+    { text: 'Ver Ganadores', icon: <EmojiEvents />, path: '/admin/winners' }, // NUEVA LÍNEA
     ...(user?.rol === 'superadmin' 
       ? [{ text: 'Crear Usuario', icon: <PersonAdd />, path: '/admin/create-user' }]
       : []
