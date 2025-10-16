@@ -1,4 +1,4 @@
-// AdminCreateRaffle.js - ACTUALIZADO
+// AdminCreateRaffle.jsx - ACTUALIZADO con fecha de sorteo
 import React, { useState } from 'react';
 import {
   Container,
@@ -24,7 +24,9 @@ import {
   useMediaQuery,
   useTheme,
   Snackbar,
-  CircularProgress
+  CircularProgress,
+  FormControlLabel,
+  Switch
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -36,10 +38,11 @@ import {
   Description,
   ArrowBack,
   Add,
-  Remove
+  Remove,
+  Event
 } from '@mui/icons-material';
 import raffleApi from '../../services/raffleApi';
-import prizeApi from '../../services/prizeApi'; // Importar el servicio de premios
+import prizeApi from '../../services/prizeApi';
 
 const AdminCreateRaffle = () => {
   const navigate = useNavigate();
@@ -55,9 +58,11 @@ const AdminCreateRaffle = () => {
     titulo: '',
     descripcion: '',
     precioTicket: '',
-    minTickets: '2',
+    minTickets: '1',
     ticketsTotales: '',
-    imagen: null
+    imagen: null,
+    fechaSorteo: '',
+    tieneFechaSorteo: false // Nuevo estado para controlar si se usa fecha
   });
   
   const [premios, setPremios] = useState([{ 
@@ -73,6 +78,24 @@ const AdminCreateRaffle = () => {
     setFormData(prev => ({
       ...prev,
       [field]: value
+    }));
+  };
+
+  // Nuevo: Manejar el toggle de fecha de sorteo
+  const handleToggleFechaSorteo = (event) => {
+    const tieneFecha = event.target.checked;
+    setFormData(prev => ({
+      ...prev,
+      tieneFechaSorteo: tieneFecha,
+      fechaSorteo: tieneFecha ? prev.fechaSorteo : ''
+    }));
+  };
+
+  // Nuevo: Manejar cambio de fecha
+  const handleFechaSorteoChange = (event) => {
+    setFormData(prev => ({
+      ...prev,
+      fechaSorteo: event.target.value
     }));
   };
 
@@ -144,6 +167,20 @@ const AdminCreateRaffle = () => {
       if (!formData.ticketsTotales || formData.ticketsTotales <= 0) {
         throw new Error('El total de tickets debe ser mayor a 0');
       }
+
+      // Validar fecha si está activada
+      if (formData.tieneFechaSorteo && !formData.fechaSorteo) {
+        throw new Error('Debe seleccionar una fecha de sorteo');
+      }
+
+      // Validar que la fecha no sea en el pasado si está activada
+      if (formData.tieneFechaSorteo && formData.fechaSorteo) {
+        const fechaSorteo = new Date(formData.fechaSorteo);
+        const ahora = new Date();
+        if (fechaSorteo <= ahora) {
+          throw new Error('La fecha del sorteo debe ser futura');
+        }
+      }
       
       // Validar que todos los premios tengan nombre y descripción
       const premiosInvalidos = premios.some(premio => 
@@ -154,13 +191,26 @@ const AdminCreateRaffle = () => {
         throw new Error('Todos los premios deben tener nombre y descripción');
       }
 
-      // 1. Primero crear la rifa (sin premios)
+      // Preparar datos para enviar
       const raffleData = {
         ...formData,
         precioTicket: parseFloat(formData.precioTicket),
         ticketsTotales: parseInt(formData.ticketsTotales),
         minTickets: parseInt(formData.minTickets)
       };
+
+      // Solo incluir fechaSorteo si está activada y tiene valor
+      if (formData.tieneFechaSorteo && formData.fechaSorteo) {
+        raffleData.fechaSorteo = formData.fechaSorteo;
+      } else {
+        // Asegurarse de que no se envíe fechaSorteo si no está activada
+        delete raffleData.fechaSorteo;
+      }
+
+      // Remover el campo temporal tieneFechaSorteo antes de enviar
+      delete raffleData.tieneFechaSorteo;
+
+      // 1. Primero crear la rifa (sin premios)
       const responseRaffle = await raffleApi.crearRaffle(raffleData);
 
       if (!responseRaffle.success) {
@@ -175,7 +225,6 @@ const AdminCreateRaffle = () => {
         const responsePremios = await prizeApi.crearPremiosParaRifa(rifaId, premios);
 
         if (!responsePremios.success) {
-          // Si falla la creación de premios, podrías eliminar la rifa creada
           throw new Error('Rifa creada, pero error al crear premios: ' + responsePremios.message);
         }
         
@@ -300,6 +349,44 @@ const AdminCreateRaffle = () => {
                     ),
                   }}
                 />
+              </Grid>
+
+              {/* NUEVO: Campo para fecha de sorteo */}
+              <Grid item xs={12}>
+                <Card sx={{ border: '1px solid #FF6B35', borderRadius: 2, mt: 2, p: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <Event sx={{ color: '#FF6B35', mr: 1 }} />
+                    <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                      Fecha del Sorteo (Opcional)
+                    </Typography>
+                  </Box>
+                  
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={formData.tieneFechaSorteo}
+                        onChange={handleToggleFechaSorteo}
+                        color="primary"
+                      />
+                    }
+                    label="Establecer fecha de sorteo"
+                  />
+
+                  {formData.tieneFechaSorteo && (
+                    <TextField
+                      fullWidth
+                      label="Fecha y Hora del Sorteo"
+                      type="datetime-local"
+                      value={formData.fechaSorteo}
+                      onChange={handleFechaSorteoChange}
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
+                      sx={{ mt: 2 }}
+                      helperText="Selecciona la fecha y hora en la que se realizará el sorteo"
+                    />
+                  )}
+                </Card>
               </Grid>
 
               <Grid item xs={12}>
@@ -487,6 +574,22 @@ const AdminCreateRaffle = () => {
                         {formData.ticketsTotales || '0'}
                       </Typography>
                     </Box>
+
+                    {/* NUEVO: Mostrar fecha de sorteo si existe */}
+                    {formData.tieneFechaSorteo && formData.fechaSorteo && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#718096' }}>Fecha del sorteo:</Typography>
+                        <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                          {new Date(formData.fechaSorteo).toLocaleString('es-ES', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </Typography>
+                      </Box>
+                    )}
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2" sx={{ color: '#718096' }}>Cantidad de premios:</Typography>
