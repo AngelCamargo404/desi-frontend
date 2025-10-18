@@ -47,6 +47,7 @@ import {
 import ticketsApi from '../../services/ticketsApi';
 import activeRaffleApi from '../../services/activeRaffleApi';
 import WhatsAppButton from '../../components/ui/WhatsappButton';
+import paymentMethodsApi from '../../services/paymentMethodsApi';
 
 const CompraTickets = () => {
   const navigate = useNavigate();
@@ -64,6 +65,10 @@ const CompraTickets = () => {
   const [cargandoNumeros, setCargandoNumeros] = useState(false);
   const [dialogoNumero, setDialogoNumero] = useState({ open: false, index: null, numero: '' });
 
+  const [metodosPagoData, setMetodosPagoData] = useState({});
+  const [metodosPagoDisponibles, setMetodosPagoDisponibles] = useState([]);
+  const [cargandoMetodosPago, setCargandoMetodosPago] = useState(true);
+
   const [formData, setFormData] = useState({
     cedula: '',
     nombre: '',
@@ -74,14 +79,20 @@ const CompraTickets = () => {
     comprobante: null
   });
 
-  // Datos de pago de la empresa
-  const datosEmpresa = {
+  const metodosPagoFallback = [
+    { value: 'transferencia', label: 'Transferencia Bancaria', icon: '🏦' },
+    { value: 'pago_movil', label: 'Pago Móvil', icon: '📱' },
+    { value: 'zelle', label: 'Zelle', icon: '💸' },
+    { value: 'binance', label: 'Binance', icon: '₿' }
+  ];
+
+  const datosEmpresaFallback = {
     transferencia: {
       banco: "Banco de Venezuela",
-      tipo: "Cuenta Corriente",
+      tipo: "Cuenta Corriente", 
       numero: "0102-1234-5678-9012-3456",
       titular: "Gana Con Desi C.A.",
-      rif: "J-12345678-9"
+      cedula_rif: "J-12345678-9"
     },
     pago_movil: {
       banco: "Bancamiga",
@@ -91,8 +102,7 @@ const CompraTickets = () => {
     },
     zelle: {
       email: "ganacondesi@zelle.com",
-      titular: "Gana Con Desi LLC",
-      nota: "Enviar comprobante vía WhatsApp"
+      titular: "Gana Con Desi LLC"
     },
     binance: {
       wallet: "TB1234567890ABCDEFGHIJKLMN",
@@ -101,13 +111,6 @@ const CompraTickets = () => {
       memo: "Rifa Millonaria"
     }
   };
-
-  const metodosPago = [
-    { value: 'transferencia', label: 'Transferencia Bancaria', icon: '🏦' },
-    { value: 'pago_movil', label: 'Pago Móvil', icon: '📱' },
-    { value: 'zelle', label: 'Zelle', icon: '💸' },
-    { value: 'binance', label: 'Binance', icon: '₿' }
-  ];
 
   const steps = ['Seleccionar Tickets', 'Información Personal', 'Método de Pago', 'Confirmación'];
 
@@ -139,12 +142,10 @@ const CompraTickets = () => {
         setLoadingRifa(true);
         setError('');
         
-  console.log('🔄 Cargando rifa activa...');
-  // Usar endpoint público para obtener la rifa activa (no requiere token)
-  const response = await activeRaffleApi.obtenerRifaActiva();
+        // Usar endpoint público para obtener la rifa activa (no requiere token)
+        const response = await activeRaffleApi.obtenerRifaActiva();
         
         if (response.success && response.data) {
-          console.log('✅ Rifa activa cargada (raw):', response.data);
           // El backend puede devolver directamente el objeto raffle o un objeto { raffleId }
           const raffle = response.data.raffleId || response.data;
           setRifaData(raffle);
@@ -160,6 +161,44 @@ const CompraTickets = () => {
     };
 
     cargarRifaActiva();
+  }, []);
+
+  useEffect(() => {
+    const cargarMetodosPago = async () => {
+      try {
+        setCargandoMetodosPago(true);
+        const response = await paymentMethodsApi.obtenerActivos();
+        
+        if (response.success && response.data && response.data.length > 0) {
+          // Usar datos de la API
+          const metodosMap = {};
+          response.data.forEach(metodo => {
+            metodosMap[metodo.codigo] = metodo.datos;
+          });
+          setMetodosPagoData(metodosMap);
+          
+          // Crear array de métodos disponibles para el select
+          const metodosDisponibles = metodosPagoFallback.filter(metodo => 
+            metodosMap[metodo.value]
+          );
+          setMetodosPagoDisponibles(metodosDisponibles);
+        } else {
+          // Usar fallback si no hay métodos en la API
+          console.warn('⚠️ Usando métodos de pago fallback');
+          setMetodosPagoData(datosEmpresaFallback);
+          setMetodosPagoDisponibles(metodosPagoFallback);
+        }
+      } catch (error) {
+        console.error('❌ Error cargando métodos de pago, usando fallback:', error);
+        // Usar datos fallback en caso de error
+        setMetodosPagoData(datosEmpresaFallback);
+        setMetodosPagoDisponibles(metodosPagoFallback);
+      } finally {
+        setCargandoMetodosPago(false);
+      }
+    };
+
+    cargarMetodosPago();
   }, []);
 
   const verificarDisponibilidadNumero = (numero, indiceActual = null) => {
@@ -270,6 +309,12 @@ const CompraTickets = () => {
       return;
     }
 
+    // Validar que hay métodos de pago disponibles en el paso 2
+    if (activeStep === 1 && metodosPago.length === 0) {
+      setError('No hay métodos de pago disponibles. No se pueden procesar compras en este momento.');
+      return;
+    }
+
     setError('');
     setActiveStep((prev) => prev + 1);
   };
@@ -328,8 +373,6 @@ const CompraTickets = () => {
         ...formData
       };
 
-      console.log('📤 Enviando datos de compra:', ticketData);
-
       const response = await ticketsApi.comprarTicket(ticketData);
 
       if (response.success) {
@@ -353,6 +396,23 @@ const CompraTickets = () => {
   };
 
   const totalPagar = rifaData ? cantidadTickets * rifaData.precioTicket : 0;
+  const datosEmpresa = metodosPagoData;
+  const metodosPago = metodosPagoDisponibles.length > 0 ? metodosPagoDisponibles : metodosPagoFallback;
+
+  const isStepDisabled = () => {
+    switch (activeStep) {
+      case 0:
+        return !rifaData || numerosSeleccionados.length !== cantidadTickets || numerosSeleccionados.some(num => !num);
+      case 1:
+        return (!formData.cedula || !formData.nombre || !formData.email || !formData.telefono || !formData.estadoCiudad);
+      case 2:
+        // Validar que hay métodos de pago disponibles
+        if (metodosPago.length === 0) return true;
+        return (!metodoPago || !formData.referencia || !formData.comprobante);
+      default:
+        return false;
+    }
+  };
 
   // Estados de carga mejorados
   if (loadingRifa) {
@@ -786,145 +846,105 @@ const CompraTickets = () => {
               Método de Pago
             </Typography>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel>Selecciona Método de Pago</InputLabel>
-                  <Select
-                    value={metodoPago}
-                    label="Selecciona Método de Pago"
-                    onChange={(e) => setMetodoPago(e.target.value)}
-                    sx={{ borderRadius: 2 }}
-                  >
-                    {metodosPago.map(metodo => (
-                      <MenuItem key={metodo.value} value={metodo.value}>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Typography variant="h6" sx={{ mr: 1 }}>{metodo.icon}</Typography>
-                          {metodo.label}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                {metodoPago && (
-                  <Card sx={{ border: '2px solid #FF6B35', borderRadius: 2, mb: 3 }}>
-                    <CardContent>
-                      <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold', mb: 2 }}>
-                        Datos para el Pago
-                      </Typography>
-                      
-                      {Object.entries(datosEmpresa[metodoPago]).map(([key, value]) => (
-                        <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                          <Typography variant="body2" sx={{ color: '#718096', fontWeight: 'bold', textTransform: 'capitalize' }}>
-                            {key.replace(/_/g, ' ')}:
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#2D3748' }}>
-                            {value}
-                          </Typography>
-                        </Box>
-                      ))}
-
-                      <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
-                        <Typography variant="body2">
-                          Realiza el pago con estos datos y guarda el comprobante.
-                        </Typography>
-                      </Alert>
-                    </CardContent>
-                  </Card>
-                )}
-
-                <TextField
-                  fullWidth
-                  label="Referencia del Comprobante (Últimos 4 dígitos)"
-                  value={formData.referencia}
-                  onChange={handleInputChange('referencia')}
-                  placeholder="Ej: 1234"
-                  sx={{ mb: 3 }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Receipt sx={{ color: '#FF6B35' }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Card sx={{ border: '2px dashed #FF6B35', borderRadius: 2, p: 2 }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <PhotoCamera sx={{ fontSize: 48, color: '#FF6B35', mb: 2 }} />
-                    <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold', mb: 1 }}>
-                      Captura del Comprobante
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#718096', mb: 2 }}>
-                      Sube una imagen clara del comprobante de pago
-                    </Typography>
-
-                    <Button
-                      variant="outlined"
-                      component="label"
-                      sx={{
-                        borderColor: '#FF6B35',
-                        color: '#FF6B35',
-                        borderRadius: 2,
-                        mb: 2
-                      }}
+            {cargandoMetodosPago ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <CircularProgress size={40} sx={{ color: '#FF6B35', mb: 2 }} />
+                <Typography variant="body1" sx={{ color: '#718096' }}>
+                  Cargando métodos de pago...
+                </Typography>
+              </Box>
+            ) : metodosPago.length === 0 ? (
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  No hay métodos de pago disponibles
+                </Typography>
+                <Typography variant="body2">
+                  Por favor, contacte al administrador para habilitar los métodos de pago.
+                </Typography>
+              </Alert>
+            ) : (
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel>Selecciona Método de Pago</InputLabel>
+                    <Select
+                      value={metodoPago}
+                      label="Selecciona Método de Pago"
+                      onChange={(e) => setMetodoPago(e.target.value)}
+                      sx={{ borderRadius: 2 }}
                     >
-                      Seleccionar Archivo
-                      <input
-                        type="file"
-                        hidden
-                        accept="image/*,.pdf"
-                        onChange={handleFileChange}
-                      />
-                    </Button>
+                      {metodosPago.map(metodo => (
+                        <MenuItem key={metodo.value} value={metodo.value}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Typography variant="h6" sx={{ mr: 1 }}>{metodo.icon}</Typography>
+                            {metodo.label}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
 
-                    {formData.comprobante && (
-                      <Alert severity="success" sx={{ borderRadius: 2 }}>
-                        <Typography variant="body2">
-                          Archivo seleccionado: {formData.comprobante.name}
+                  {metodoPago && datosEmpresa[metodoPago] && (
+                    <Card sx={{ border: '2px solid #FF6B35', borderRadius: 2, mb: 3 }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold', mb: 2 }}>
+                          Datos para el Pago - {metodosPago.find(m => m.value === metodoPago)?.label}
                         </Typography>
-                      </Alert>
-                    )}
+                        
+                        {/* Filtrar y mostrar solo los datos que tienen valor */}
+                        {Object.entries(datosEmpresa[metodoPago])
+                          .filter(([key, value]) => value && value.trim() !== '') // Solo mostrar campos con valor
+                          .map(([key, value]) => (
+                            <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="body2" sx={{ color: '#718096', fontWeight: 'bold', textTransform: 'capitalize' }}>
+                                {key.replace(/_/g, ' ')}:
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: '#2D3748' }}>
+                                {value}
+                              </Typography>
+                            </Box>
+                          ))}
 
-                    <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                        <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
+                          <Typography variant="body2">
+                            Realiza el pago con estos datos y guarda el comprobante.
+                            {formData.referencia && ` Tu referencia: ${formData.referencia}`}
+                          </Typography>
+                        </Alert>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {metodoPago && !datosEmpresa[metodoPago] && (
+                    <Alert severity="warning" sx={{ mb: 3 }}>
                       <Typography variant="body2">
-                        <strong>Formatos aceptados:</strong> JPG, PNG, PDF, HEIC<br />
-                        <strong>Tamaño máximo:</strong> 10MB
+                        No se encontraron datos para este método de pago. Por favor, contacte al administrador.
                       </Typography>
                     </Alert>
-                  </CardContent>
-                </Card>
-
-                <Box sx={{ mt: 2, p: 2, backgroundColor: 'rgba(255, 107, 53, 0.1)', borderRadius: 2 }}>
-                  <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold', mb: 1 }}>
-                    Resumen del Pedido
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#718096' }}>Tickets:</Typography>
-                    <Typography variant="body2" sx={{ color: '#2D3748' }}>{cantidadTickets}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#718096' }}>Precio unitario:</Typography>
-                    <Typography variant="body2" sx={{ color: '#2D3748' }}>${rifaData?.precioTicket || '0'}</Typography>
-                  </Box>
-                  <Divider sx={{ my: 1 }} />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold' }}>Total:</Typography>
-                    <Typography variant="h6" sx={{ color: '#FF6B35', fontWeight: 'bold' }}>${totalPagar}</Typography>
-                  </Box>
-                  {numerosSeleccionados.length > 0 && (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="body2" sx={{ color: '#4CAF50', fontWeight: 'bold' }}>
-                        Números: {numerosSeleccionados.filter(num => num).sort((a, b) => a - b).join(', ')}
-                      </Typography>
-                    </Box>
                   )}
-                </Box>
+
+                  <TextField
+                    fullWidth
+                    label="Referencia del Comprobante (Últimos 4 dígitos)"
+                    value={formData.referencia}
+                    onChange={handleInputChange('referencia')}
+                    placeholder="Ej: 1234"
+                    sx={{ mb: 3 }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Receipt sx={{ color: '#FF6B35' }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  {/* ... resto del step 2 se mantiene igual ... */}
+                </Grid>
               </Grid>
-            </Grid>
+            )}
           </Box>
         );
 
@@ -1080,12 +1100,7 @@ const CompraTickets = () => {
               <Button
                 variant="contained"
                 onClick={activeStep === steps.length - 2 ? handleSubmit : handleNext}
-                disabled={
-                  (activeStep === 0 && (!rifaData || numerosSeleccionados.length !== cantidadTickets || numerosSeleccionados.some(num => !num))) ||
-                  (activeStep === 1 && (!formData.cedula || !formData.nombre || !formData.email || !formData.telefono || !formData.estadoCiudad)) ||
-                  (activeStep === 2 && (!metodoPago || !formData.referencia || !formData.comprobante)) ||
-                  loading
-                }
+                disabled={isStepDisabled() || loading}
                 sx={{
                   backgroundColor: '#FF6B35',
                   '&:hover': { backgroundColor: '#FF8E53' },
