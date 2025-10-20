@@ -1,4 +1,4 @@
-// services/prizeApi.js
+// services/prizeApi.js - ACTUALIZADO con campos opcionales
 import api from './api';
 
 export const prizeApi = {
@@ -12,16 +12,30 @@ export const prizeApi = {
     }
   },
 
-  // Crear múltiples premios para una rifa
+  // Crear múltiples premios para una rifa - ACTUALIZADO
   crearPremiosParaRifa: async (rifaId, premios) => {
     try {
-      // Asegurar que los premios tengan el formato correcto
-      const premiosData = premios.map((premio, index) => ({
-        nombre: premio.nombre || `Premio ${index + 1}`,
-        descripcion: premio.descripcion,
-        valor: premio.valor ? parseFloat(premio.valor) : undefined,
-        posicion: index + 1
-      }));
+      // Asegurar que los premios tengan el formato correcto con soporte para premios no monetarios
+      const premiosData = premios.map((premio, index) => {
+        const premioData = {
+          nombre: premio.nombre || `Premio ${index + 1}`,
+          descripcion: premio.descripcion,
+          posicion: index + 1
+        };
+
+        // Solo incluir campos de valor si existen
+        if (premio.moneda) {
+          premioData.moneda = premio.moneda;
+        }
+        if (premio.valor !== undefined && premio.valor !== null && premio.valor !== '') {
+          premioData.valor = parseFloat(premio.valor);
+        }
+        if (premio.valorBS !== undefined && premio.valorBS !== null && premio.valorBS !== '') {
+          premioData.valorBS = parseFloat(premio.valorBS);
+        }
+
+        return premioData;
+      });
 
       const response = await api.post(`/prizes/rifa/${rifaId}/multiples`, { 
         premios: premiosData 
@@ -33,7 +47,7 @@ export const prizeApi = {
     }
   },
 
-  // Obtener premios por rifa
+  // Los demás métodos se mantienen igual...
   obtenerPrizesPorRifa: async (rifaId, incluirInactivos = false) => {
     try {
       const response = await api.get(`/prizes/rifa/${rifaId}`, {

@@ -1,4 +1,4 @@
-// AdminCreateRaffle.jsx - ACTUALIZADO con fecha de sorteo
+// AdminCreateRaffle.jsx - ACTUALIZADO con campos opcionales
 import React, { useState } from 'react';
 import {
   Container,
@@ -26,7 +26,8 @@ import {
   Snackbar,
   CircularProgress,
   FormControlLabel,
-  Switch
+  Switch,
+  Collapse
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -39,7 +40,10 @@ import {
   ArrowBack,
   Add,
   Remove,
-  Event
+  Event,
+  CurrencyExchange,
+  ExpandMore,
+  ExpandLess
 } from '@mui/icons-material';
 import raffleApi from '../../services/raffleApi';
 import prizeApi from '../../services/prizeApi';
@@ -58,17 +62,22 @@ const AdminCreateRaffle = () => {
     titulo: '',
     descripcion: '',
     precioTicket: '',
+    precioTicketBS: '',
+    moneda: 'USD',
     minTickets: '1',
     ticketsTotales: '',
     imagen: null,
     fechaSorteo: '',
-    tieneFechaSorteo: false // Nuevo estado para controlar si se usa fecha
+    tieneFechaSorteo: false
   });
   
   const [premios, setPremios] = useState([{ 
     nombre: '',
     descripcion: '',
-    valor: ''
+    valor: '',
+    valorBS: '',
+    moneda: 'USD',
+    tieneValor: false // Nuevo campo para controlar si el premio tiene valor
   }]);
 
   const steps = ['Información Básica', 'Configuración de Premios', 'Revisar y Crear'];
@@ -81,7 +90,39 @@ const AdminCreateRaffle = () => {
     }));
   };
 
-  // Nuevo: Manejar el toggle de fecha de sorteo
+  const handleMonedaChange = (event) => {
+    const moneda = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      moneda: moneda
+    }));
+  };
+
+  // Nuevo: Manejar toggle de valor en premios
+  const handlePremioTieneValorChange = (index, tieneValor) => {
+    const nuevosPremios = [...premios];
+    nuevosPremios[index] = {
+      ...nuevosPremios[index],
+      tieneValor: tieneValor,
+      // Limpiar valores si se desactiva
+      ...(!tieneValor && {
+        valor: '',
+        valorBS: '',
+        moneda: 'USD'
+      })
+    };
+    setPremios(nuevosPremios);
+  };
+
+  const handlePremioMonedaChange = (index, moneda) => {
+    const nuevosPremios = [...premios];
+    nuevosPremios[index] = {
+      ...nuevosPremios[index],
+      moneda: moneda
+    };
+    setPremios(nuevosPremios);
+  };
+
   const handleToggleFechaSorteo = (event) => {
     const tieneFecha = event.target.checked;
     setFormData(prev => ({
@@ -91,7 +132,6 @@ const AdminCreateRaffle = () => {
     }));
   };
 
-  // Nuevo: Manejar cambio de fecha
   const handleFechaSorteoChange = (event) => {
     setFormData(prev => ({
       ...prev,
@@ -109,7 +149,14 @@ const AdminCreateRaffle = () => {
   };
 
   const agregarPremio = () => {
-    setPremios(prev => [...prev, { nombre: '', descripcion: '', valor: '' }]);
+    setPremios(prev => [...prev, { 
+      nombre: '', 
+      descripcion: '', 
+      valor: '',
+      valorBS: '',
+      moneda: 'USD',
+      tieneValor: false
+    }]);
   };
 
   const eliminarPremio = (index) => {
@@ -160,8 +207,13 @@ const AdminCreateRaffle = () => {
         throw new Error('El título de la rifa es requerido');
       }
       
-      if (!formData.precioTicket || formData.precioTicket <= 0) {
-        throw new Error('El precio del ticket debe ser mayor a 0');
+      // Validar precio según la moneda seleccionada
+      if (formData.moneda === 'USD' && (!formData.precioTicket || formData.precioTicket <= 0)) {
+        throw new Error('El precio del ticket en USD debe ser mayor a 0');
+      }
+      
+      if (formData.moneda === 'BS' && (!formData.precioTicketBS || formData.precioTicketBS <= 0)) {
+        throw new Error('El precio del ticket en BS debe ser mayor a 0');
       }
       
       if (!formData.ticketsTotales || formData.ticketsTotales <= 0) {
@@ -194,7 +246,9 @@ const AdminCreateRaffle = () => {
       // Preparar datos para enviar
       const raffleData = {
         ...formData,
-        precioTicket: parseFloat(formData.precioTicket),
+        precioTicket: formData.moneda === 'USD' ? parseFloat(formData.precioTicket) : parseFloat(formData.precioTicketBS),
+        precioTicketBS: formData.moneda === 'BS' ? parseFloat(formData.precioTicketBS) : (formData.precioTicketBS ? parseFloat(formData.precioTicketBS) : null),
+        moneda: formData.moneda,
         ticketsTotales: parseInt(formData.ticketsTotales),
         minTickets: parseInt(formData.minTickets)
       };
@@ -203,12 +257,32 @@ const AdminCreateRaffle = () => {
       if (formData.tieneFechaSorteo && formData.fechaSorteo) {
         raffleData.fechaSorteo = formData.fechaSorteo;
       } else {
-        // Asegurarse de que no se envíe fechaSorteo si no está activada
         delete raffleData.fechaSorteo;
       }
 
       // Remover el campo temporal tieneFechaSorteo antes de enviar
       delete raffleData.tieneFechaSorteo;
+
+      // Preparar premios - solo incluir valor si tieneValor es true
+      const premiosParaEnviar = premios.map(premio => {
+        const premioData = {
+          nombre: premio.nombre,
+          descripcion: premio.descripcion
+        };
+
+        // Solo incluir campos de valor si el premio tiene valor
+        if (premio.tieneValor) {
+          premioData.moneda = premio.moneda;
+          if (premio.moneda === 'USD' && premio.valor) {
+            premioData.valor = parseFloat(premio.valor);
+          }
+          if (premio.moneda === 'BS' && premio.valorBS) {
+            premioData.valorBS = parseFloat(premio.valorBS);
+          }
+        }
+
+        return premioData;
+      });
 
       // 1. Primero crear la rifa (sin premios)
       const responseRaffle = await raffleApi.crearRaffle(raffleData);
@@ -220,15 +294,13 @@ const AdminCreateRaffle = () => {
       const rifaId = responseRaffle.data.id;
 
       // 2. Luego crear los premios por separado
-      if (premios.length > 0) {
-        console.log('Creando premios:', premios);
-        const responsePremios = await prizeApi.crearPremiosParaRifa(rifaId, premios);
+      if (premiosParaEnviar.length > 0) {
+        const responsePremios = await prizeApi.crearPremiosParaRifa(rifaId, premiosParaEnviar);
 
         if (!responsePremios.success) {
           throw new Error('Rifa creada, pero error al crear premios: ' + responsePremios.message);
         }
         
-        console.log('Premios creados exitosamente');
       }
 
       setSuccess('Rifa y premios creados exitosamente');
@@ -299,22 +371,100 @@ const AdminCreateRaffle = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Precio por Ticket"
-                  type="number"
-                  value={formData.precioTicket}
-                  onChange={handleInputChange('precioTicket')}
-                  InputProps={{
-                    startAdornment: (
+              {/* Selector de moneda */}
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>Moneda Principal</InputLabel>
+                  <Select
+                    value={formData.moneda}
+                    label="Moneda Principal"
+                    onChange={handleMonedaChange}
+                    startAdornment={
                       <InputAdornment position="start">
-                        <AttachMoney sx={{ color: '#FF6B35' }} />
+                        <CurrencyExchange sx={{ color: '#FF6B35', ml: 1 }} />
                       </InputAdornment>
-                    ),
-                  }}
-                />
+                    }
+                  >
+                    <MenuItem value="USD">Dólares (USD)</MenuItem>
+                    <MenuItem value="BS">Bolívares (BS)</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
+
+              {/* Campos de precio según moneda seleccionada */}
+              {formData.moneda === 'USD' ? (
+                <>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Precio por Ticket (USD)"
+                      type="number"
+                      value={formData.precioTicket}
+                      onChange={handleInputChange('precioTicket')}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <AttachMoney sx={{ color: '#FF6B35' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Precio en BS (Opcional)"
+                      type="number"
+                      value={formData.precioTicketBS}
+                      onChange={handleInputChange('precioTicketBS')}
+                      placeholder="Equivalente en bolívares"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Typography sx={{ color: '#FF6B35', fontWeight: 'bold' }}>BS</Typography>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                </>
+              ) : (
+                <>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Precio por Ticket (BS)"
+                      type="number"
+                      value={formData.precioTicketBS}
+                      onChange={handleInputChange('precioTicketBS')}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Typography sx={{ color: '#FF6B35', fontWeight: 'bold' }}>BS</Typography>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Precio en USD (Opcional)"
+                      type="number"
+                      value={formData.precioTicket}
+                      onChange={handleInputChange('precioTicket')}
+                      placeholder="Equivalente en dólares"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <AttachMoney sx={{ color: '#FF6B35' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                </>
+              )}
 
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
@@ -333,14 +483,13 @@ const AdminCreateRaffle = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Total de Tickets Disponibles"
                   type="number"
                   value={formData.ticketsTotales}
                   onChange={handleInputChange('ticketsTotales')}
-                  sx={{ mt: 2 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -351,7 +500,7 @@ const AdminCreateRaffle = () => {
                 />
               </Grid>
 
-              {/* NUEVO: Campo para fecha de sorteo */}
+              {/* Campo para fecha de sorteo */}
               <Grid item xs={12}>
                 <Card sx={{ border: '1px solid #FF6B35', borderRadius: 2, mt: 2, p: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -483,7 +632,7 @@ const AdminCreateRaffle = () => {
                   </Box>
                   
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                       <TextField
                         fullWidth
                         label={`Nombre del Premio ${index + 1}`}
@@ -493,21 +642,17 @@ const AdminCreateRaffle = () => {
                         sx={{ mb: 2 }}
                       />
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                      <TextField
-                        fullWidth
-                        label="Valor (opcional)"
-                        type="number"
-                        value={premio.valor}
-                        onChange={(e) => handlePremioChange(index, 'valor', e.target.value)}
-                        placeholder="Ej: 1000000"
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <AttachMoney sx={{ color: '#FF6B35' }} />
-                            </InputAdornment>
-                          ),
-                        }}
+                    
+                    <Grid item xs={12} md={6}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={premio.tieneValor}
+                            onChange={(e) => handlePremioTieneValorChange(index, e.target.checked)}
+                            color="primary"
+                          />
+                        }
+                        label="Este premio tiene valor monetario"
                       />
                     </Grid>
                   </Grid>
@@ -517,19 +662,81 @@ const AdminCreateRaffle = () => {
                     label={`Descripción del Premio ${index + 1}`}
                     value={premio.descripcion}
                     onChange={(e) => handlePremioChange(index, 'descripcion', e.target.value)}
-                    placeholder={`Describe el premio ${index + 1} (ej: Automóvil nuevo modelo 2024)`}
+                    placeholder={`Describe el premio ${index + 1}`}
                     multiline
                     rows={2}
-                    sx={{ mt: 1 }}
+                    sx={{ mt: 1, mb: 2 }}
                   />
+
+                  {/* Sección de valor monetario (solo se muestra si tieneValor es true) */}
+                  <Collapse in={premio.tieneValor}>
+                    <Box sx={{ p: 2, backgroundColor: 'rgba(255, 107, 53, 0.05)', borderRadius: 1, mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ color: '#FF6B35', fontWeight: 'bold', mb: 2 }}>
+                        Valor Monetario del Premio
+                      </Typography>
+                      
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={4}>
+                          <FormControl fullWidth>
+                            <InputLabel>Moneda del Premio</InputLabel>
+                            <Select
+                              value={premio.moneda}
+                              label="Moneda del Premio"
+                              onChange={(e) => handlePremioMonedaChange(index, e.target.value)}
+                            >
+                              <MenuItem value="USD">Dólares (USD)</MenuItem>
+                              <MenuItem value="BS">Bolívares (BS)</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+
+                        <Grid item xs={12} md={8}>
+                          {premio.moneda === 'USD' ? (
+                            <TextField
+                              fullWidth
+                              label="Valor (USD)"
+                              type="number"
+                              value={premio.valor}
+                              onChange={(e) => handlePremioChange(index, 'valor', e.target.value)}
+                              placeholder="Ej: 1000"
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <AttachMoney sx={{ color: '#FF6B35' }} />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          ) : (
+                            <TextField
+                              fullWidth
+                              label="Valor (BS)"
+                              type="number"
+                              value={premio.valorBS}
+                              onChange={(e) => handlePremioChange(index, 'valorBS', e.target.value)}
+                              placeholder="Ej: 1000000"
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <Typography sx={{ color: '#FF6B35', fontWeight: 'bold' }}>BS</Typography>
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          )}
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  </Collapse>
                 </CardContent>
               </Card>
             ))}
 
             <Alert severity="info" sx={{ mt: 3, borderRadius: 2 }}>
               <Typography variant="body2">
-                <strong>Nota:</strong> Los premios se crearán de forma independiente y se asociarán a esta rifa.
-                Puedes agregar o eliminar premios según sea necesario.
+                <strong>Nota:</strong> Los campos de valor monetario son opcionales. 
+                Úsalos solo si el premio es dinero o tiene un valor monetario específico.
+                Para premios como productos físicos o servicios, puedes dejar esta sección desactivada.
               </Typography>
             </Alert>
           </Box>
@@ -555,11 +762,39 @@ const AdminCreateRaffle = () => {
                     </Typography>
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2" sx={{ color: '#718096' }}>Precio por ticket:</Typography>
+                      <Typography variant="body2" sx={{ color: '#718096' }}>Moneda principal:</Typography>
                       <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
-                        ${formData.precioTicket || '0'}
+                        {formData.moneda === 'USD' ? 'Dólares (USD)' : 'Bolívares (BS)'}
                       </Typography>
                     </Box>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2" sx={{ color: '#718096' }}>Precio por ticket:</Typography>
+                      <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                        {formData.moneda === 'USD' 
+                          ? `$${formData.precioTicket || '0'}`
+                          : `BS ${formData.precioTicketBS || '0'}`
+                        }
+                      </Typography>
+                    </Box>
+
+                    {formData.moneda === 'USD' && formData.precioTicketBS && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#718096' }}>Precio equivalente en BS:</Typography>
+                        <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                          BS {formData.precioTicketBS}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {formData.moneda === 'BS' && formData.precioTicket && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#718096' }}>Precio equivalente en USD:</Typography>
+                        <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                          ${formData.precioTicket}
+                        </Typography>
+                      </Box>
+                    )}
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Typography variant="body2" sx={{ color: '#718096' }}>Mínimo de tickets:</Typography>
@@ -575,7 +810,6 @@ const AdminCreateRaffle = () => {
                       </Typography>
                     </Box>
 
-                    {/* NUEVO: Mostrar fecha de sorteo si existe */}
                     {formData.tieneFechaSorteo && formData.fechaSorteo && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                         <Typography variant="body2" sx={{ color: '#718096' }}>Fecha del sorteo:</Typography>
@@ -613,9 +847,19 @@ const AdminCreateRaffle = () => {
                         <Typography variant="subtitle2" sx={{ color: '#FF6B35', fontWeight: 'bold' }}>
                           {premio.nombre || `Premio ${index + 1}`}
                         </Typography>
-                        {premio.valor && (
+                        {premio.tieneValor && premio.moneda === 'USD' && premio.valor && (
                           <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
-                            Valor: ${premio.valor}
+                            Valor: ${premio.valor} USD
+                          </Typography>
+                        )}
+                        {premio.tieneValor && premio.moneda === 'BS' && premio.valorBS && (
+                          <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                            Valor: BS {premio.valorBS}
+                          </Typography>
+                        )}
+                        {!premio.tieneValor && (
+                          <Typography variant="body2" sx={{ color: '#2D3748', fontStyle: 'italic' }}>
+                            Premio no monetario (producto o servicio)
                           </Typography>
                         )}
                         <Typography variant="body2" sx={{ color: '#2D3748' }}>
@@ -737,7 +981,12 @@ const AdminCreateRaffle = () => {
               variant="contained"
               onClick={activeStep === steps.length - 1 ? handleSubmit : handleNext}
               disabled={
-                (activeStep === 0 && (!formData.titulo || !formData.precioTicket || !formData.ticketsTotales)) ||
+                (activeStep === 0 && (
+                  !formData.titulo || 
+                  !formData.ticketsTotales ||
+                  (formData.moneda === 'USD' && !formData.precioTicket) ||
+                  (formData.moneda === 'BS' && !formData.precioTicketBS)
+                )) ||
                 (activeStep === 1 && premios.some(premio => !premio.nombre.trim() || !premio.descripcion.trim())) ||
                 loading
               }

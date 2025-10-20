@@ -1,4 +1,4 @@
-// services/raffleApi.js - ACTUALIZADO
+// services/raffleApi.js - ACTUALIZADO con monedas múltiples
 import api from './api';
 
 export const raffleApi = {
@@ -11,6 +11,8 @@ export const raffleApi = {
       formData.append('titulo', raffleData.titulo);
       formData.append('descripcion', raffleData.descripcion);
       formData.append('precioTicket', raffleData.precioTicket);
+      formData.append('precioTicketBS', raffleData.precioTicketBS || '');
+      formData.append('moneda', raffleData.moneda);
       formData.append('minTickets', raffleData.minTickets);
       formData.append('ticketsTotales', raffleData.ticketsTotales);
       

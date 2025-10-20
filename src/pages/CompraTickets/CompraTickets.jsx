@@ -941,7 +941,77 @@ const CompraTickets = () => {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  {/* ... resto del step 2 se mantiene igual ... */}
+                  <Card sx={{ border: '2px dashed #FF6B35', borderRadius: 2, p: 2 }}>
+                    <CardContent sx={{ textAlign: 'center' }}>
+                      <PhotoCamera sx={{ fontSize: 48, color: '#FF6B35', mb: 2 }} />
+                      <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold', mb: 1 }}>
+                        Captura del Comprobante
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#718096', mb: 2 }}>
+                        Sube una imagen clara del comprobante de pago
+                      </Typography>
+
+                      <Button
+                        variant="outlined"
+                        component="label"
+                        sx={{
+                          borderColor: '#FF6B35',
+                          color: '#FF6B35',
+                          borderRadius: 2,
+                          mb: 2
+                        }}
+                      >
+                        Seleccionar Archivo
+                        <input
+                          type="file"
+                          hidden
+                          accept="image/*,.pdf"
+                          onChange={handleFileChange}
+                        />
+                      </Button>
+
+                      {formData.comprobante && (
+                        <Alert severity="success" sx={{ borderRadius: 2 }}>
+                          <Typography variant="body2">
+                            Archivo seleccionado: {formData.comprobante.name}
+                          </Typography>
+                        </Alert>
+                      )}
+
+                      <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                        <Typography variant="body2">
+                          <strong>Formatos aceptados:</strong> JPG, PNG, PDF, HEIC<br />
+                          <strong>Tamaño máximo:</strong> 10MB
+                        </Typography>
+                      </Alert>
+                    </CardContent>
+                  </Card>
+
+                  <Box sx={{ mt: 2, p: 2, backgroundColor: 'rgba(255, 107, 53, 0.1)', borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold', mb: 1 }}>
+                      Resumen del Pedido
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2" sx={{ color: '#718096' }}>Tickets:</Typography>
+                      <Typography variant="body2" sx={{ color: '#2D3748' }}>{cantidadTickets}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2" sx={{ color: '#718096' }}>Precio unitario:</Typography>
+                      <Typography variant="body2" sx={{ color: '#2D3748' }}>${rifaData?.precioTicket || '0'}</Typography>
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold' }}>Total:</Typography>
+                      <Typography variant="h6" sx={{ color: '#FF6B35', fontWeight: 'bold' }}>${totalPagar}</Typography>
+                    </Box>
+                    {numerosSeleccionados.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                          Números: {numerosSeleccionados.filter(num => num).sort((a, b) => a - b).join(', ')}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
                 </Grid>
               </Grid>
             )}

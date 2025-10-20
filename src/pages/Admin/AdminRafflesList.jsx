@@ -59,7 +59,8 @@ import {
   Numbers,
   EmojiEvents, 
   Celebration,
-  Event
+  Event,
+  CurrencyExchange
 } from '@mui/icons-material';
 import raffleApi from '../../services/raffleApi';
 import activeRaffleApi from '../../services/activeRaffleApi';
@@ -106,6 +107,8 @@ const AdminRafflesList = () => {
     titulo: '',
     descripcion: '',
     precioTicket: '',
+    precioTicketBS: '', // Nuevo campo
+    moneda: 'USD', // Nuevo campo
     minTickets: '',
     ticketsTotales: '',
     estado: '',
@@ -136,29 +139,25 @@ const AdminRafflesList = () => {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Cargando datos de rifas...');
       
       // Cargar todas las rifas
       const rafflesResponse = await raffleApi.obtenerRaffles(1, 50);
-      console.log('📊 Respuesta de rifas:', rafflesResponse);
+
 
       // Cargar información de la rifa activa actual
       const activeResponse = await activeRaffleApi.obtenerInfoRifaActiva();
-      console.log('🎯 Información de rifa activa:', activeResponse);
+      
 
       if (rafflesResponse.success) {
         setRaffles(rafflesResponse.data.raffles || []);
-        console.log(`✅ ${rafflesResponse.data.raffles?.length || 0} rifas cargadas`);
       } else {
         setError(rafflesResponse.message || 'Error al cargar las rifas');
       }
 
       if (activeResponse.success && activeResponse.data) {
         setActiveRaffle(activeResponse.data.raffleId);
-        console.log('✅ Rifa activa cargada:', activeResponse.data.raffleId?.titulo);
       } else {
         setActiveRaffle(null);
-        console.log('ℹ️ No hay rifa activa actualmente');
       }
 
     } catch (error) {
@@ -249,7 +248,6 @@ const AdminRafflesList = () => {
         setError(response.message || 'Error al seleccionar los ganadores');
       }
     } catch (error) {
-      console.log(error);
       setError(error.message || 'Error al seleccionar los ganadores');
     } finally {
       setSelectingWinners(false);
@@ -306,6 +304,8 @@ const AdminRafflesList = () => {
       titulo: raffle.titulo || '',
       descripcion: raffle.descripcion || '',
       precioTicket: raffle.precioTicket || '',
+      precioTicketBS: raffle.precioTicketBS || '', // Nuevo campo
+      moneda: raffle.moneda || 'USD', // Nuevo campo
       minTickets: raffle.minTickets || '',
       ticketsTotales: raffle.ticketsTotales || '',
       estado: raffle.estado || 'activa',
@@ -316,6 +316,30 @@ const AdminRafflesList = () => {
     });
     setImagePreview(raffle.imagen?.url || null);
     setEditRaffleModalOpen(true);
+  };
+
+  const handleMonedaChange = (event) => {
+    const moneda = event.target.value;
+    setRaffleForm(prev => ({
+      ...prev,
+      moneda: moneda
+    }));
+  };
+
+  // NUEVO: Manejar cambio de precio en BS
+  const handlePrecioTicketBSChange = (event) => {
+    setRaffleForm(prev => ({
+      ...prev,
+      precioTicketBS: event.target.value
+    }));
+  };
+
+  // NUEVO: Manejar cambio de precio en USD
+  const handlePrecioTicketChange = (event) => {
+    setRaffleForm(prev => ({
+      ...prev,
+      precioTicket: event.target.value
+    }));
   };
 
   // Función para manejar cambio de imagen
@@ -380,6 +404,20 @@ const AdminRafflesList = () => {
     try {
       setLoading(true);
       
+      // Validaciones básicas
+      if (!raffleForm.titulo.trim()) {
+        throw new Error('El título de la rifa es requerido');
+      }
+
+      // Validar precio según la moneda seleccionada
+      if (raffleForm.moneda === 'USD' && (!raffleForm.precioTicket || raffleForm.precioTicket <= 0)) {
+        throw new Error('El precio del ticket en USD debe ser mayor a 0');
+      }
+      
+      if (raffleForm.moneda === 'BS' && (!raffleForm.precioTicketBS || raffleForm.precioTicketBS <= 0)) {
+        throw new Error('El precio del ticket en BS debe ser mayor a 0');
+      }
+
       // Validar fecha si está activada
       if (raffleForm.tieneFechaSorteo && !raffleForm.fechaSorteo) {
         throw new Error('Debe seleccionar una fecha de sorteo');
@@ -394,11 +432,16 @@ const AdminRafflesList = () => {
         }
       }
 
+      // Preparar datos para enviar
       const raffleData = {
-        ...raffleForm,
-        precioTicket: parseFloat(raffleForm.precioTicket),
+        titulo: raffleForm.titulo,
+        descripcion: raffleForm.descripcion,
+        precioTicket: raffleForm.moneda === 'USD' ? parseFloat(raffleForm.precioTicket) : parseFloat(raffleForm.precioTicketBS),
+        precioTicketBS: raffleForm.moneda === 'BS' ? parseFloat(raffleForm.precioTicketBS) : (raffleForm.precioTicketBS ? parseFloat(raffleForm.precioTicketBS) : null),
+        moneda: raffleForm.moneda,
         minTickets: parseInt(raffleForm.minTickets),
-        ticketsTotales: parseInt(raffleForm.ticketsTotales)
+        ticketsTotales: parseInt(raffleForm.ticketsTotales),
+        estado: raffleForm.estado
       };
 
       // Solo incluir fechaSorteo si está activada y tiene valor
@@ -408,11 +451,6 @@ const AdminRafflesList = () => {
         // Si no está activada, eliminar la fecha de sorteo
         raffleData.fechaSorteo = null;
       }
-
-      // Eliminar campos temporales del objeto principal
-      delete raffleData.imagen;
-      delete raffleData.nuevaImagen;
-      delete raffleData.tieneFechaSorteo;
 
       // 1. Primero actualizar los datos de la rifa
       const response = await raffleApi.actualizarRaffle(editingRaffle._id, raffleData);
@@ -433,6 +471,8 @@ const AdminRafflesList = () => {
         setEditRaffleModalOpen(false);
         // Recargar datos
         await cargarDatos();
+      } else {
+        throw new Error(response.message || 'Error al actualizar la rifa');
       }
     } catch (error) {
       console.error('Error completo al actualizar rifa:', error);
@@ -475,7 +515,6 @@ const AdminRafflesList = () => {
   const handleActivarRifa = async (raffle) => {
     setActivating(true);
     try {
-      console.log(`🎯 Activando rifa: ${raffle.titulo} (${raffle._id})`);
       
       const response = await activeRaffleApi.activarRifa(raffle._id);
       
@@ -765,8 +804,25 @@ const AdminRafflesList = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#2D3748' }}>
-                        ${raffle.precioTicket}
+                        {raffle.moneda === 'USD' 
+                          ? `$${raffle.precioTicket}` 
+                          : `BS ${raffle.precioTicketBS}`
+                        }
+                        <Typography variant="caption" sx={{ color: '#718096', ml: 1 }}>
+                          ({raffle.moneda})
+                        </Typography>
                       </Typography>
+                      {/* Mostrar precio equivalente si existe */}
+                      {raffle.moneda === 'USD' && raffle.precioTicketBS && (
+                        <Typography variant="caption" sx={{ color: '#718096', display: 'block' }}>
+                          BS {raffle.precioTicketBS}
+                        </Typography>
+                      )}
+                      {raffle.moneda === 'BS' && raffle.precioTicket && (
+                        <Typography variant="caption" sx={{ color: '#718096', display: 'block' }}>
+                          ${raffle.precioTicket}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
@@ -1065,7 +1121,7 @@ const AdminRafflesList = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Modal de Edición de Rifa - ACTUALIZADO con fecha de sorteo */}
+      {/* Modal de Edición de Rifa - ACTUALIZADO con monedas múltiples */}
       <Dialog 
         open={editRaffleModalOpen} 
         onClose={() => setEditRaffleModalOpen(false)}
@@ -1125,7 +1181,110 @@ const AdminRafflesList = () => {
 
             <Divider sx={{ my: 2 }} />
 
-            {/* NUEVA SECCIÓN: Fecha del Sorteo */}
+            {/* NUEVA SECCIÓN: Moneda y Precios */}
+            <Box sx={{ mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <CurrencyExchange sx={{ color: '#FF6B35', mr: 1 }} />
+                <Typography variant="h6" sx={{ color: '#2D3748' }}>
+                  Configuración de Moneda y Precios
+                </Typography>
+              </Box>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth>
+                    <InputLabel>Moneda Principal</InputLabel>
+                    <Select
+                      value={raffleForm.moneda}
+                      label="Moneda Principal"
+                      onChange={handleMonedaChange}
+                    >
+                      <MenuItem value="USD">Dólares (USD)</MenuItem>
+                      <MenuItem value="BS">Bolívares (BS)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Campos de precio según moneda seleccionada */}
+                {raffleForm.moneda === 'USD' ? (
+                  <>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Precio por Ticket (USD)"
+                        type="number"
+                        value={raffleForm.precioTicket}
+                        onChange={handlePrecioTicketChange}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <AttachMoney sx={{ color: '#FF6B35' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Precio en BS (Opcional)"
+                        type="number"
+                        value={raffleForm.precioTicketBS}
+                        onChange={handlePrecioTicketBSChange}
+                        placeholder="Equivalente en bolívares"
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Typography sx={{ color: '#FF6B35', fontWeight: 'bold' }}>BS</Typography>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                  </>
+                ) : (
+                  <>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Precio por Ticket (BS)"
+                        type="number"
+                        value={raffleForm.precioTicketBS}
+                        onChange={handlePrecioTicketBSChange}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Typography sx={{ color: '#FF6B35', fontWeight: 'bold' }}>BS</Typography>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Precio en USD (Opcional)"
+                        type="number"
+                        value={raffleForm.precioTicket}
+                        onChange={handlePrecioTicketChange}
+                        placeholder="Equivalente en dólares"
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <AttachMoney sx={{ color: '#FF6B35' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                  </>
+                )}
+              </Grid>
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* SECCIÓN: Fecha del Sorteo */}
             <Box sx={{ mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Event sx={{ color: '#FF6B35', mr: 1 }} />
@@ -1163,7 +1322,7 @@ const AdminRafflesList = () => {
 
             <Divider sx={{ my: 2 }} />
 
-            {/* Formulario de datos de la rifa */}
+            {/* Formulario de datos básicos de la rifa */}
             <Grid container spacing={2}>
               <Grid item xs={12}>
                 <TextField
@@ -1181,18 +1340,6 @@ const AdminRafflesList = () => {
                   rows={3}
                   value={raffleForm.descripcion}
                   onChange={(e) => setRaffleForm({ ...raffleForm, descripcion: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Precio por Ticket"
-                  type="number"
-                  value={raffleForm.precioTicket}
-                  onChange={(e) => setRaffleForm({ ...raffleForm, precioTicket: e.target.value })}
-                  InputProps={{
-                    startAdornment: <AttachMoney sx={{ color: '#FF6B35', mr: 1 }} />
-                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -1238,9 +1385,10 @@ const AdminRafflesList = () => {
           <Button 
             onClick={handleSaveRaffle}
             variant="contained"
+            disabled={loading}
             sx={{ backgroundColor: '#FF6B35' }}
           >
-            Guardar Cambios
+            {loading ? <CircularProgress size={24} /> : 'Guardar Cambios'}
           </Button>
         </DialogActions>
       </Dialog>
