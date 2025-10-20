@@ -15,7 +15,7 @@ import {
   IconButton
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { Casino, Star, LocalAtm, Rocket, Whatshot, ZoomIn, Close } from '@mui/icons-material';
+import { Casino, Star, LocalAtm, Rocket, Whatshot, ZoomIn, Close, CurrencyExchange } from '@mui/icons-material';
 import ProgressBar from '../../components/ui/ProgressBar';
 import WhatsAppButton from '../../components/ui/WhatsappButton';
 import VerificationModal from '../../components/ui/VerificationModal';
@@ -49,6 +49,25 @@ const Dashboard = () => {
     }
   };
 
+  // Función para formatear el precio según la moneda
+  const formatearPrecio = () => {
+    if (!rifaData) return { principal: '', equivalente: '' };
+
+    if (rifaData.moneda === 'USD') {
+      const principal = `$${rifaData.precioTicket} USD`;
+      const equivalente = rifaData.precioTicketBS 
+        ? `BS ${rifaData.precioTicketBS}` 
+        : '';
+      return { principal, equivalente };
+    } else {
+      const principal = `BS ${rifaData.precioTicketBS}`;
+      const equivalente = rifaData.precioTicket 
+        ? `$${rifaData.precioTicket} USD` 
+        : '';
+      return { principal, equivalente };
+    }
+  };
+  
   if (loading) {
     return (
       <Container maxWidth="lg" sx={{ 
@@ -57,7 +76,7 @@ const Dashboard = () => {
         justifyContent: 'center', 
         alignItems: 'center', 
         minHeight: '50vh',
-        textAlign: 'center' // Centrado en móvil
+        textAlign: 'center'
       }}>
         <CircularProgress size={60} sx={{ color: '#FF6B35' }} />
       </Container>
@@ -68,7 +87,7 @@ const Dashboard = () => {
     return (
       <Container maxWidth="lg" sx={{ 
         py: 4, 
-        textAlign: 'center' // Ya estaba centrado
+        textAlign: 'center'
       }}>
         <Alert severity="info" sx={{ mb: 2 }}>
           <Typography variant="h6">
@@ -84,11 +103,12 @@ const Dashboard = () => {
 
   const progress = (rifaData.ticketsVendidos / rifaData.ticketsTotales) * 100;
   const tieneImagen = rifaData.imagen && rifaData.imagen.url;
+  const { principal, equivalente } = formatearPrecio();
 
   return (
     <Container maxWidth="lg" sx={{ 
       py: 4,
-      textAlign: { xs: 'center', md: 'left' } // Centrado en móvil, izquierda en desktop
+      textAlign: { xs: 'center', md: 'left' }
     }}>
       {/* Banner Principal */}
       <Card sx={{ 
@@ -101,7 +121,7 @@ const Dashboard = () => {
         overflow: 'hidden',
         border: tieneImagen ? 'none' : '2px solid #FFD700',
         boxShadow: tieneImagen ? 'none' : '0 10px 30px rgba(255, 107, 53, 0.4)',
-        textAlign: 'center' // Centrado para el contenido del banner
+        textAlign: 'center'
       }}>
         {tieneImagen ? (
           <Box sx={{ position: 'relative' }}>
@@ -157,7 +177,7 @@ const Dashboard = () => {
               <Typography variant="h3" gutterBottom sx={{ 
                 fontWeight: 'bold', 
                 textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' } // Responsive
+                fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' }
               }}>
                 {rifaData.titulo}
               </Typography>
@@ -166,7 +186,7 @@ const Dashboard = () => {
                 maxWidth: '800px', 
                 margin: '0 auto', 
                 textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' } // Responsive
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' }
               }}>
                 {rifaData.descripcion}
               </Typography>
@@ -178,7 +198,7 @@ const Dashboard = () => {
             <Typography variant="h3" gutterBottom sx={{ 
               fontWeight: 'bold', 
               textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-              fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' } // Responsive
+              fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' }
             }}>
               {rifaData.titulo}
             </Typography>
@@ -186,7 +206,7 @@ const Dashboard = () => {
               opacity: 0.95, 
               maxWidth: '800px', 
               margin: '0 auto',
-              fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' } // Responsive
+              fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' }
             }}>
               {rifaData.descripcion}
             </Typography>
@@ -257,13 +277,13 @@ const Dashboard = () => {
             backdropFilter: 'blur(10px)',
             border: '1px solid rgba(255, 255, 255, 0.2)',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
+            textAlign: { xs: 'center', md: 'left' }
           }}>
             <CardContent>
               <Typography variant="h5" gutterBottom sx={{ 
                 color: '#2D3748', 
                 fontWeight: 'bold',
-                textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
+                textAlign: { xs: 'center', md: 'left' }
               }}>
                 Detalles de la Rifa
               </Typography>
@@ -274,7 +294,7 @@ const Dashboard = () => {
                     display: 'flex', 
                     alignItems: 'center', 
                     mb: 2,
-                    justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                    justifyContent: { xs: 'center', md: 'flex-start' }
                   }}>
                     <LocalAtm sx={{ mr: 1, color: '#FF6B35', fontSize: 30 }} />
                     <Box>
@@ -282,8 +302,13 @@ const Dashboard = () => {
                         Precio por ticket
                       </Typography>
                       <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
-                        ${rifaData.precioTicket}
+                        {principal}
                       </Typography>
+                      {equivalente && (
+                        <Typography variant="h6" sx={{ color: '#2D3748', fontWeight: 'bold' }}>
+                          {equivalente}
+                        </Typography>
+                      )}
                     </Box>
                   </Box>
                 </Grid>
@@ -292,7 +317,7 @@ const Dashboard = () => {
                     display: 'flex', 
                     alignItems: 'center', 
                     mb: 2,
-                    justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                    justifyContent: { xs: 'center', md: 'flex-start' }
                   }}>
                     <Star sx={{ mr: 1, color: '#FF6B35', fontSize: 30 }} />
                     <Box>
@@ -312,7 +337,7 @@ const Dashboard = () => {
                   display: 'flex', 
                   alignItems: 'center', 
                   mb: 2,
-                  justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                  justifyContent: { xs: 'center', md: 'flex-start' }
                 }}>
                   <Casino sx={{ mr: 1, color: '#FF6B35', fontSize: 30 }} />
                   <Box>
@@ -323,7 +348,9 @@ const Dashboard = () => {
                       {new Date(rifaData.fechaSorteo).toLocaleDateString('es-ES', {
                         year: 'numeric',
                         month: 'long',
-                        day: 'numeric'
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
                       })}
                     </Typography>
                   </Box>
@@ -333,7 +360,7 @@ const Dashboard = () => {
               <Box sx={{ 
                 mt: 2, 
                 display: 'flex', 
-                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                justifyContent: { xs: 'center', md: 'flex-start' }
               }}>
                 <Chip 
                   label={`${rifaData.ticketsVendidos}/${rifaData.ticketsTotales} tickets vendidos`}
@@ -359,14 +386,14 @@ const Dashboard = () => {
             border: '1px solid rgba(255, 255, 255, 0.2)',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
             mb: 2,
-            textAlign: 'center' // Ya estaba centrado
+            textAlign: 'center'
           }}>
             <CardContent sx={{ textAlign: 'center', p: 3 }}>
               <Typography variant="h5" gutterBottom sx={{ 
                 color: '#2D3748', 
                 fontWeight: 'bold', 
                 mb: 3,
-                textAlign: 'center' // Aseguramos centrado
+                textAlign: 'center'
               }}>
                 ¡Tu Momento de Ganar!
               </Typography>
@@ -382,7 +409,7 @@ const Dashboard = () => {
                 sx={{ 
                   mb: 2,
                   py: 2,
-                  fontSize: { xs: '1rem', sm: '1.2rem' }, // Responsive
+                  fontSize: { xs: '1rem', sm: '1.2rem' },
                   fontWeight: 'bold',
                   background: 'linear-gradient(45deg, #FF6B35 0%, #FF8E53 50%, #FF6B35 100%)',
                   backgroundSize: '200% 200%',
@@ -432,7 +459,7 @@ const Dashboard = () => {
                 color: '#718096', 
                 mb: 2, 
                 fontStyle: 'italic',
-                textAlign: 'center' // Aseguramos centrado
+                textAlign: 'center'
               }}>
                 ¡No esperes más para cambiar tu suerte!
               </Typography>
@@ -464,13 +491,13 @@ const Dashboard = () => {
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(10px)',
             border: '1px solid rgba(255, 255, 255, 0.2)',
-            textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
+            textAlign: { xs: 'center', md: 'left' }
           }}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ 
                 color: '#2D3748', 
                 fontWeight: 'bold',
-                textAlign: { xs: 'center', md: 'left' } // Centrado en móvil
+                textAlign: { xs: 'center', md: 'left' }
               }}>
                 ¿Por Qué Participar?
               </Typography>
@@ -478,7 +505,7 @@ const Dashboard = () => {
                 display: 'flex', 
                 alignItems: 'center', 
                 mb: 1,
-                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                justifyContent: { xs: 'center', md: 'flex-start' }
               }}>
                 <Star sx={{ color: '#FF6B35', mr: 1, fontSize: 20 }} />
                 <Typography variant="body2" sx={{ color: '#666' }}>
@@ -489,7 +516,7 @@ const Dashboard = () => {
                 display: 'flex', 
                 alignItems: 'center', 
                 mb: 1,
-                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                justifyContent: { xs: 'center', md: 'flex-start' }
               }}>
                 <Star sx={{ color: '#FF6B35', mr: 1, fontSize: 20 }} />
                 <Typography variant="body2" sx={{ color: '#666' }}>
@@ -500,7 +527,7 @@ const Dashboard = () => {
                 display: 'flex', 
                 alignItems: 'center', 
                 mb: 1,
-                justifyContent: { xs: 'center', md: 'flex-start' } // Centrado en móvil
+                justifyContent: { xs: 'center', md: 'flex-start' }
               }}>
                 <Star sx={{ color: '#FF6B35', mr: 1, fontSize: 20 }} />
                 <Typography variant="body2" sx={{ color: '#666' }}>
@@ -517,7 +544,7 @@ const Dashboard = () => {
       <VerificationModal 
         open={verificationModalOpen}
         onClose={() => setVerificationModalOpen(false)}
-        rifaId={rifaData?._id} // Pasar el ID de la rifa activa
+        rifaId={rifaData?._id}
       />
     </Container>
   );
