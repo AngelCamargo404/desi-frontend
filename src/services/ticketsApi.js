@@ -183,6 +183,29 @@ export const ticketsApi = {
     }
   },
 
+  obtenerComprasCanceladasPorRifa: async (rifaId, pagina = 1, limite = 10) => {
+    try {
+      const response = await api.get(`/tickets/rifa/${rifaId}/compras-canceladas`, {
+        params: {
+          pagina,
+          limite
+        }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al obtener compras canceladas');
+    }
+  },
+
+  cancelarCompra: async (transaccionId, razon) => {
+    try {
+      const response = await api.post(`/tickets/compra/${transaccionId}/cancelar`, { razon });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al cancelar la compra');
+    }
+  },
+
   // Verificar ticket
   verificarTicket: async (ticketId, verificadoPor) => {
     try {

@@ -208,6 +208,8 @@ const CompraTickets = () => {
       return { disponible: false, mensaje: `El número debe estar entre 1 y ${rifaData.ticketsTotales}` };
     }
     
+    // IMPORTANTE: Solo considerar como ocupados los números que están VENDIDOS actualmente
+    // Los números cancelados (disponibles) no deben estar en numerosOcupados
     if (numerosOcupados.includes(numero)) {
       return { disponible: false, mensaje: `El número ${numero} ya está ocupado` };
     }
@@ -297,6 +299,24 @@ const CompraTickets = () => {
     cerrarDialogoNumero();
   };
 
+  const recargarNumerosOcupados = async () => {
+    try {
+      setCargandoNumeros(true);
+      const response = await ticketsApi.obtenerNumerosOcupados(rifaData._id);
+      if (response.success) {
+        setNumerosOcupados(response.data);
+        setError('');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error recargando números ocupados:', error);
+      return false;
+    } finally {
+      setCargandoNumeros(false);
+    }
+  };
+
   const eliminarNumero = (index) => {
     const nuevosNumeros = numerosSeleccionados.filter((_, i) => i !== index);
     setNumerosSeleccionados(nuevosNumeros);
@@ -347,13 +367,12 @@ const CompraTickets = () => {
       return;
     }
 
-    // Validar que todos los números estén completos
+    // Validaciones existentes...
     if (numerosSeleccionados.some(num => !num || isNaN(num))) {
       setError('Todos los números deben estar completos y válidos');
       return;
     }
 
-    // Validar que no haya números duplicados
     const numerosUnicos = [...new Set(numerosSeleccionados)];
     if (numerosUnicos.length !== numerosSeleccionados.length) {
       setError('No puedes seleccionar números duplicados');
@@ -384,7 +403,31 @@ const CompraTickets = () => {
 
     } catch (error) {
       console.error('❌ Error en handleSubmit:', error);
-      setError(error.message || 'Error al procesar la compra. Por favor, intenta nuevamente.');
+      
+      // Manejo específico del error de número no disponible
+      if (error.message.includes('no está disponible')) {
+        // Extraer el número del mensaje de error
+        const numeroMatch = error.message.match(/\d+/);
+        if (numeroMatch) {
+          const numeroError = parseInt(numeroMatch[0]);
+          setError(`Error: ${error.message}. Recargando números disponibles...`);
+          
+          // Recargar números ocupados y remover el número problemático
+          setTimeout(async () => {
+            const recargado = await recargarNumerosOcupados();
+            if (recargado) {
+              // Remover el número problemático de la selección actual
+              const nuevosNumeros = numerosSeleccionados.filter(num => num !== numeroError);
+              setNumerosSeleccionados(nuevosNumeros);
+              setError(`El número ${numeroError} fue removido de tu selección. Por favor intenta con otros números.`);
+            }
+          }, 2000);
+        } else {
+          setError(error.message);
+        }
+      } else {
+        setError(error.message || 'Error al procesar la compra. Por favor, intenta nuevamente.');
+      }
     } finally {
       setLoading(false);
     }

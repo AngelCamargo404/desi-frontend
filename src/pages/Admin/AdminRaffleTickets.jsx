@@ -1,3 +1,4 @@
+// AdminRaffleTickets.jsx - VERSION COMPLETA ACTUALIZADA
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -29,7 +30,13 @@ import {
   Avatar,
   Tabs,
   Tab,
-  Divider
+  Divider,
+  TextField,
+  InputAdornment,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   ArrowBack,
@@ -44,7 +51,11 @@ import {
   LocationOn,
   Payment,
   Refresh,
-  Numbers
+  Numbers,
+  Search,
+  Clear,
+  Block,
+  DoNotDisturb
 } from '@mui/icons-material';
 import ticketsApi from '../../services/ticketsApi';
 import raffleApi from '../../services/raffleApi';
@@ -56,8 +67,13 @@ const AdminRaffleTickets = () => {
   const [raffle, setRaffle] = useState(null);
   const [unverifiedCompras, setUnverifiedCompras] = useState([]);
   const [verifiedCompras, setVerifiedCompras] = useState([]);
+  const [canceledCompras, setCanceledCompras] = useState([]);
+  const [filteredUnverifiedCompras, setFilteredUnverifiedCompras] = useState([]);
+  const [filteredVerifiedCompras, setFilteredVerifiedCompras] = useState([]);
+  const [filteredCanceledCompras, setFilteredCanceledCompras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
+  const [canceling, setCanceling] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentTab, setCurrentTab] = useState(0);
@@ -65,10 +81,17 @@ const AdminRaffleTickets = () => {
   // Estados para paginación
   const [unverifiedPage, setUnverifiedPage] = useState(1);
   const [verifiedPage, setVerifiedPage] = useState(1);
+  const [canceledPage, setCanceledPage] = useState(1);
   const [unverifiedTotalPages, setUnverifiedTotalPages] = useState(1);
   const [verifiedTotalPages, setVerifiedTotalPages] = useState(1);
+  const [canceledTotalPages, setCanceledTotalPages] = useState(1);
   const [unverifiedTotal, setUnverifiedTotal] = useState(0);
   const [verifiedTotal, setVerifiedTotal] = useState(0);
+  const [canceledTotal, setCanceledTotal] = useState(0);
+  
+  // Estados para filtrado
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
   
   // Estados para modales
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -76,10 +99,22 @@ const AdminRaffleTickets = () => {
   const [confirmationModal, setConfirmationModal] = useState({
     open: false,
     transaccionId: null,
-    compraData: null
+    compraData: null,
+    type: 'verify' // 'verify' o 'cancel'
   });
 
   const ticketsPerPage = 10;
+
+  // Opciones de filtrado
+  const filterOptions = [
+    { value: 'all', label: 'Todos los campos' },
+    { value: 'ticket', label: 'Número de ticket' },
+    { value: 'name', label: 'Nombre del comprador' },
+    { value: 'email', label: 'Email' },
+    { value: 'cedula', label: 'Cédula' },
+    { value: 'reference', label: 'Referencia de pago' },
+    { value: 'transaction', label: 'ID de transacción' }
+  ];
 
   useEffect(() => {
     cargarDatosIniciales();
@@ -89,23 +124,89 @@ const AdminRaffleTickets = () => {
     if (raffle) {
       if (currentTab === 0) {
         cargarComprasNoVerificadas();
-      } else {
+      } else if (currentTab === 1) {
         cargarComprasVerificadas();
+      } else if (currentTab === 2) {
+        cargarComprasCanceladas();
       }
     }
-  }, [raffle, currentTab, unverifiedPage, verifiedPage]);
+  }, [raffle, currentTab, unverifiedPage, verifiedPage, canceledPage]);
+
+  // Aplicar filtros cuando cambie el término de búsqueda o el tipo de filtro
+  useEffect(() => {
+    aplicarFiltros();
+  }, [searchTerm, filterType, unverifiedCompras, verifiedCompras, canceledCompras, currentTab]);
+
+  const aplicarFiltros = () => {
+    if (!searchTerm.trim()) {
+      setFilteredUnverifiedCompras(unverifiedCompras);
+      setFilteredVerifiedCompras(verifiedCompras);
+      setFilteredCanceledCompras(canceledCompras);
+      return;
+    }
+
+    const term = searchTerm.toLowerCase().trim();
+
+    const filtrarCompra = (compra) => {
+      switch (filterType) {
+        case 'ticket':
+          return compra.numerosTickets.some(numero => 
+            numero.toString().includes(term)
+          );
+        case 'name':
+          return compra.comprador.nombre.toLowerCase().includes(term);
+        case 'email':
+          return compra.comprador.email.toLowerCase().includes(term);
+        case 'cedula':
+          return compra.comprador.cedula?.toLowerCase().includes(term);
+        case 'reference':
+          return compra.referenciaPago?.toLowerCase().includes(term);
+        case 'transaction':
+          // Para compras canceladas, buscar en transaccionIdOriginal
+          if (compra.transaccionIdOriginal) {
+            return compra.transaccionIdOriginal.toLowerCase().includes(term);
+          }
+          return compra.transaccionId.toLowerCase().includes(term);
+        case 'all':
+        default:
+          const campos = [
+            ...compra.numerosTickets.map(numero => numero.toString()),
+            compra.comprador.nombre.toLowerCase(),
+            compra.comprador.email.toLowerCase(),
+            compra.comprador.cedula?.toLowerCase() || '',
+            compra.referenciaPago?.toLowerCase() || '',
+            compra.transaccionId.toLowerCase(),
+            formatearMetodoPago(compra.metodoPago).toLowerCase()
+          ];
+          
+          // Para compras canceladas, agregar transaccionIdOriginal
+          if (compra.transaccionIdOriginal) {
+            campos.push(compra.transaccionIdOriginal.toLowerCase());
+          }
+          
+          return campos.some(campo => campo.includes(term));
+      }
+    };
+
+    if (currentTab === 0) {
+      setFilteredUnverifiedCompras(unverifiedCompras.filter(filtrarCompra));
+    } else if (currentTab === 1) {
+      setFilteredVerifiedCompras(verifiedCompras.filter(filtrarCompra));
+    } else if (currentTab === 2) {
+      setFilteredCanceledCompras(canceledCompras.filter(filtrarCompra));
+    }
+  };
+
+  const limpiarFiltros = () => {
+    setSearchTerm('');
+    setFilterType('all');
+  };
 
   const cargarDatosIniciales = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Cargando datos iniciales para rifa:', raffleId);
-      
-      // Cargar información de la rifa
       await cargarRifa();
-      
-      // Cargar totales de ambas categorías
       await cargarTotales();
-      
     } catch (error) {
       console.error('❌ Error cargando datos iniciales:', error);
       setError(error.message || 'Error al cargar los datos iniciales');
@@ -116,12 +217,11 @@ const AdminRaffleTickets = () => {
 
   const formatearMetodoPago = (metodo) => {
     if (!metodo) return 'N/A';
-    
     return metodo
-      .replace(/_/g, ' ') // Reemplazar guiones bajos por espacios
+      .replace(/_/g, ' ')
       .replace(/\w\S*/g, (txt) => 
         txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-      ); // Primera letra mayúscula
+      );
   };
 
   const cargarRifa = async () => {
@@ -139,20 +239,24 @@ const AdminRaffleTickets = () => {
 
   const cargarTotales = async () => {
     try {
-      console.log('📊 Cargando totales de compras...');
       
-      // Cargar total de compras no verificadas
       const unverifiedResponse = await ticketsApi.obtenerComprasNoVerificadasPorRifa(raffleId, 1, 1);
       if (unverifiedResponse.success) {
         setUnverifiedTotal(unverifiedResponse.data.totalCompras || 0);
         setUnverifiedTotalPages(unverifiedResponse.data.totalPaginas || 1);
       }
 
-      // Cargar total de compras verificadas
       const verifiedResponse = await ticketsApi.obtenerComprasVerificadasPorRifa(raffleId, 1, 1);
       if (verifiedResponse.success) {
         setVerifiedTotal(verifiedResponse.data.totalCompras || 0);
         setVerifiedTotalPages(verifiedResponse.data.totalPaginas || 1);
+      }
+
+      // Nueva llamada para compras canceladas
+      const canceledResponse = await ticketsApi.obtenerComprasCanceladasPorRifa(raffleId, 1, 1);
+      if (canceledResponse.success) {
+        setCanceledTotal(canceledResponse.data.totalCompras || 0);
+        setCanceledTotalPages(canceledResponse.data.totalPaginas || 1);
       }
 
     } catch (error) {
@@ -161,60 +265,29 @@ const AdminRaffleTickets = () => {
     }
   };
 
-    const cargarComprasNoVerificadas = async () => {
-      setLoading(true);
-      try {
-        const response = await ticketsApi.obtenerComprasNoVerificadasPorRifa(
-          raffleId, 
-          unverifiedPage, 
-          ticketsPerPage
-        );
-        
-        console.log('📦 Compras no verificadas:', response);
-        
-        if (response.success) {
-          setUnverifiedCompras(response.data.compras || []);
-          setUnverifiedTotalPages(response.data.totalPaginas || 1);
-          setUnverifiedTotal(response.data.totalCompras || 0);
-        } else {
-          setError(response.message || 'Error al cargar compras no verificadas');
-        }
-      } catch (error) {
-        console.error('❌ Error cargando compras no verificadas:', error);
-        setError(error.message || 'Error al cargar compras no verificadas');
-      } finally {
-        setLoading(false);
+  const cargarComprasNoVerificadas = async () => {
+    setLoading(true);
+    try {
+      const response = await ticketsApi.obtenerComprasNoVerificadasPorRifa(
+        raffleId, 
+        unverifiedPage, 
+        ticketsPerPage
+      );
+      
+      if (response.success) {
+        setUnverifiedCompras(response.data.compras || []);
+        setUnverifiedTotalPages(response.data.totalPaginas || 1);
+        setUnverifiedTotal(response.data.totalCompras || 0);
+      } else {
+        setError(response.message || 'Error al cargar compras no verificadas');
       }
-    };
-
-    const agruparTicketsManual = (tickets) => {
-        const agrupado = {};
-        
-        tickets.forEach(ticket => {
-            if (!agrupado[ticket.transaccionId]) {
-            agrupado[ticket.transaccionId] = {
-                transaccionId: ticket.transaccionId,
-                comprador: ticket.comprador,
-                metodoPago: ticket.metodoPago,
-                referenciaPago: ticket.referenciaPago,
-                comprobante: ticket.comprobante,
-                fechaCompra: ticket.fechaCompra,
-                verificado: ticket.verificado,
-                fechaVerificacion: ticket.fechaVerificacion,
-                verificadoPor: ticket.verificadoPor,
-                cantidadTickets: 0,
-                numerosTickets: [],
-                ticketsIds: []
-            };
-            }
-            
-            agrupado[ticket.transaccionId].cantidadTickets++;
-            agrupado[ticket.transaccionId].numerosTickets.push(ticket.numero);
-            agrupado[ticket.transaccionId].ticketsIds.push(ticket._id);
-        });
-        
-        return Object.values(agrupado);
-        };
+    } catch (error) {
+      console.error('❌ Error cargando compras no verificadas:', error);
+      setError(error.message || 'Error al cargar compras no verificadas');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const cargarComprasVerificadas = async () => {
     setLoading(true);
@@ -240,11 +313,39 @@ const AdminRaffleTickets = () => {
     }
   };
 
-  const handleOpenConfirmation = (compra) => {
+  // NUEVO: Cargar compras canceladas
+  const cargarComprasCanceladas = async () => {
+    setLoading(true);
+    try {
+      const response = await ticketsApi.obtenerComprasCanceladasPorRifa(
+        raffleId, 
+        canceledPage, 
+        ticketsPerPage
+      );
+      
+      if (response.success) {
+        setCanceledCompras(response.data.compras || []);
+        setCanceledTotalPages(response.data.totalPaginas || 1);
+        setCanceledTotal(response.data.totalCompras || 0);
+      } else {
+        console.error('❌ Error en respuesta:', response.message);
+        setError(response.message || 'Error al cargar compras canceladas');
+      }
+    } catch (error) {
+      console.error('❌ Error cargando compras canceladas:', error);
+      setError(error.message || 'Error al cargar compras canceladas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // MODALES Y ACCIONES
+  const handleOpenConfirmation = (compra, type = 'verify') => {
     setConfirmationModal({
       open: true,
       transaccionId: compra.transaccionId,
-      compraData: compra
+      compraData: compra,
+      type: type
     });
   };
 
@@ -252,7 +353,8 @@ const AdminRaffleTickets = () => {
     setConfirmationModal({
       open: false,
       transaccionId: null,
-      compraData: null
+      compraData: null,
+      type: 'verify'
     });
   };
 
@@ -260,16 +362,13 @@ const AdminRaffleTickets = () => {
     setVerifying(true);
     try {
       const verificadoPor = 'Administrador';
-      
       const response = await ticketsApi.verificarCompra(confirmationModal.transaccionId, verificadoPor);
+      
       if (response.success) {
         setSuccess(`Compra verificada exitosamente. ${response.data.length} ticket(s) verificados.`);
-        
-        // Recargar ambos totales y las listas actuales
         await cargarTotales();
         await cargarComprasNoVerificadas();
         await cargarComprasVerificadas();
-        
         handleCloseConfirmation();
         setDetailsModalOpen(false);
       }
@@ -277,6 +376,28 @@ const AdminRaffleTickets = () => {
       setError(error.message || 'Error al verificar la compra');
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleCancelCompra = async () => {
+    setCanceling(true);
+    try {
+      const razon = "Cancelado por administrador";
+      const response = await ticketsApi.cancelarCompra(confirmationModal.transaccionId, razon);
+      
+      if (response.success) {
+        setSuccess(`Compra cancelada exitosamente. ${response.data.ticketsCancelados} ticket(s) liberados.`);
+        await cargarTotales();
+        await cargarComprasNoVerificadas();
+        await cargarComprasVerificadas();
+        await cargarComprasCanceladas(); // Recargar la lista de canceladas
+        handleCloseConfirmation();
+        setDetailsModalOpen(false);
+      }
+    } catch (error) {
+      setError(error.message || 'Error al cancelar la compra');
+    } finally {
+      setCanceling(false);
     }
   };
 
@@ -294,6 +415,8 @@ const AdminRaffleTickets = () => {
     setCurrentTab(newValue);
     setUnverifiedPage(1);
     setVerifiedPage(1);
+    setCanceledPage(1);
+    limpiarFiltros();
   };
 
   const handleUnverifiedPageChange = (event, value) => {
@@ -304,14 +427,20 @@ const AdminRaffleTickets = () => {
     setVerifiedPage(value);
   };
 
+  const handleCanceledPageChange = (event, value) => {
+    setCanceledPage(value);
+  };
+
   const recargarTodosLosDatos = async () => {
     setLoading(true);
     try {
       await cargarTotales();
       if (currentTab === 0) {
         await cargarComprasNoVerificadas();
-      } else {
+      } else if (currentTab === 1) {
         await cargarComprasVerificadas();
+      } else if (currentTab === 2) {
+        await cargarComprasCanceladas();
       }
       setSuccess('Datos actualizados correctamente');
     } catch (error) {
@@ -320,6 +449,16 @@ const AdminRaffleTickets = () => {
       setLoading(false);
     }
   };
+
+  // Obtener compras actuales según la pestaña activa
+  const comprasActuales = currentTab === 0 ? filteredUnverifiedCompras : 
+                         currentTab === 1 ? filteredVerifiedCompras : 
+                         filteredCanceledCompras;
+  
+  const totalFiltrado = comprasActuales.length;
+  const totalSinFiltrar = currentTab === 0 ? unverifiedCompras.length : 
+                         currentTab === 1 ? verifiedCompras.length : 
+                         canceledCompras.length;
 
   if (loading && !raffle) {
     return (
@@ -418,13 +557,13 @@ const AdminRaffleTickets = () => {
           </Card>
         </Grid>
         <Grid item xs={12} sm={3}>
-          <Card sx={{ backgroundColor: 'rgba(158, 158, 158, 0.1)', border: '1px solid #9E9E9E' }}>
+          <Card sx={{ backgroundColor: 'rgba(244, 67, 54, 0.1)', border: '1px solid #f44336' }}>
             <CardContent>
               <Typography color="white" gutterBottom>
-                Disponibles
+                Compras Canceladas
               </Typography>
-              <Typography variant="h4" sx={{ color: '#9E9E9E', fontWeight: 'bold' }}>
-                {(raffle?.ticketsTotales || 0) - (raffle?.ticketsVendidos || 0)}
+              <Typography variant="h4" sx={{ color: '#f44336', fontWeight: 'bold' }}>
+                {canceledTotal}
               </Typography>
             </CardContent>
           </Card>
@@ -475,10 +614,95 @@ const AdminRaffleTickets = () => {
                 </Box>
               } 
             />
+            <Tab 
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <DoNotDisturb sx={{ mr: 1, color: '#f44336' }} />
+                  Rechazadas
+                  <Chip 
+                    label={canceledTotal} 
+                    size="small" 
+                    color="error"
+                    sx={{ ml: 1 }}
+                  />
+                </Box>
+              } 
+            />
           </Tabs>
 
           {/* Contenido de los Tabs */}
           <Box sx={{ p: 3 }}>
+            {/* Filtros de búsqueda */}
+            <Box sx={{ mb: 3, p: 2, backgroundColor: 'rgba(0, 0, 0, 0.02)', borderRadius: 1 }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Buscar en compras..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: searchTerm && (
+                        <InputAdornment position="end">
+                          <IconButton
+                            size="small"
+                            onClick={limpiarFiltros}
+                            edge="end"
+                          >
+                            <Clear />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Filtrar por</InputLabel>
+                    <Select
+                      value={filterType}
+                      label="Filtrar por"
+                      onChange={(e) => setFilterType(e.target.value)}
+                    >
+                      {filterOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={5}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                    <Typography variant="body2" sx={{ color: '#718096' }}>
+                      {searchTerm ? (
+                        <>Mostrando {totalFiltrado} de {totalSinFiltrar} compras</>
+                      ) : (
+                        <>Total: {totalSinFiltrar} compras</>
+                      )}
+                    </Typography>
+                    {searchTerm && (
+                      <Button
+                        size="small"
+                        startIcon={<Clear />}
+                        onClick={limpiarFiltros}
+                        sx={{ ml: 2 }}
+                      >
+                        Limpiar
+                      </Button>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Pestaña de Compras Pendientes */}
             {currentTab === 0 && (
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -511,108 +735,134 @@ const AdminRaffleTickets = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {unverifiedCompras.map((compra) => (
-                            <TableRow key={compra.transaccionId} hover>
-                              <TableCell>
-                                <Box>
+                          {filteredUnverifiedCompras.length > 0 ? (
+                            filteredUnverifiedCompras.map((compra) => (
+                              <TableRow key={compra.transaccionId} hover>
+                                <TableCell>
+                                  <Box>
+                                    <Chip 
+                                      label={`${compra.cantidadTickets} ticket${compra.cantidadTickets > 1 ? 's' : ''}`}
+                                      color="primary"
+                                      variant="outlined"
+                                      sx={{ fontWeight: 'bold', mb: 0.5 }}
+                                    />
+                                    <Typography variant="body2" sx={{ color: '#718096', fontSize: '0.75rem' }}>
+                                      ID: {compra.transaccionId.substring(0, 8)}...
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                      {compra.comprador.nombre}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#718096' }}>
+                                      {compra.comprador.cedula || 'Sin cédula'}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Box>
+                                    <Typography variant="body2">
+                                      {compra.comprador.email}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#718096' }}>
+                                      {compra.comprador.telefono || 'Sin teléfono'}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
                                   <Chip 
-                                    label={`${compra.cantidadTickets} ticket${compra.cantidadTickets > 1 ? 's' : ''}`}
-                                    color="primary"
-                                    variant="outlined"
-                                    sx={{ fontWeight: 'bold', mb: 0.5 }}
+                                    label={formatearMetodoPago(compra.metodoPago)}
+                                    size="small"
+                                    color="secondary"
                                   />
-                                  <Typography variant="body2" sx={{ color: '#718096', fontSize: '0.75rem' }}>
-                                    ID: {compra.transaccionId.substring(0, 8)}...
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>
-                                <Box>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                                    {compra.comprador.nombre}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ color: '#718096' }}>
-                                    {compra.comprador.cedula || 'Sin cédula'}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>
-                                <Box>
-                                  <Typography variant="body2">
-                                    {compra.comprador.email}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ color: '#718096' }}>
-                                    {compra.comprador.telefono || 'Sin teléfono'}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>
-                                <Chip 
-                                  label={formatearMetodoPago(compra.metodoPago)}
-                                  size="small"
-                                  color="secondary"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Tooltip title={compra.numerosTickets.sort((a, b) => a - b).join(', ')}>
+                                </TableCell>
+                                <TableCell>
+                                  <Tooltip title={compra.numerosTickets.sort((a, b) => a - b).join(', ')}>
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                      {compra.numerosTickets.length} número(s)
+                                    </Typography>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>
                                   <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                                    {compra.numerosTickets.length} número(s) - ({compra.numerosTickets.join(', ')})
+                                    {compra.referenciaPago || 'N/A'}
                                   </Typography>
-                                </Tooltip>
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                                  {compra.referenciaPago || 'N/A'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2">
-                                  {compra.fechaCompra ? new Date(compra.fechaCompra).toLocaleDateString() : 'N/A'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                  <Tooltip title="Ver Detalles">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleOpenDetails(compra)}
-                                      sx={{ color: '#1976d2' }}
-                                    >
-                                      <Visibility />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Confirmar Pago">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleOpenConfirmation(compra)}
-                                      disabled={verifying}
-                                      sx={{ color: '#4CAF50' }}
-                                    >
-                                      <CheckCircle />
-                                    </IconButton>
-                                  </Tooltip>
-                                </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {compra.fechaCompra ? new Date(compra.fechaCompra).toLocaleDateString() : 'N/A'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Tooltip title="Ver Detalles">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleOpenDetails(compra)}
+                                        sx={{ color: '#1976d2' }}
+                                      >
+                                        <Visibility />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Confirmar Pago">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleOpenConfirmation(compra, 'verify')}
+                                        disabled={verifying}
+                                        sx={{ color: '#4CAF50' }}
+                                      >
+                                        <CheckCircle />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Cancelar Compra">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleOpenConfirmation(compra, 'cancel')}
+                                        disabled={canceling}
+                                        sx={{ color: '#f44336' }}
+                                      >
+                                        <Block />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                                {searchTerm ? (
+                                  <>
+                                    <Search sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
+                                    <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
+                                      No se encontraron compras
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
+                                      No hay compras que coincidan con "{searchTerm}"
+                                    </Typography>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
+                                    <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
+                                      No hay compras pendientes de verificación
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
+                                      Todas las compras han sido verificadas
+                                    </Typography>
+                                  </>
+                                )}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}
                         </TableBody>
                       </Table>
                     </TableContainer>
 
-                    {unverifiedCompras.length === 0 && (
-                      <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <CheckCircle sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
-                        <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
-                          No hay compras pendientes de verificación
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
-                          Todas las compras han sido verificadas
-                        </Typography>
-                      </Box>
-                    )}
-
                     {/* Paginación para compras no verificadas */}
-                    {unverifiedTotalPages > 1 && (
+                    {unverifiedTotalPages > 1 && !searchTerm && (
                       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                         <Pagination
                           count={unverifiedTotalPages}
@@ -627,6 +877,7 @@ const AdminRaffleTickets = () => {
               </Box>
             )}
 
+            {/* Pestaña de Compras Verificadas */}
             {currentTab === 1 && (
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -659,101 +910,276 @@ const AdminRaffleTickets = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {verifiedCompras.map((compra) => (
-                            <TableRow key={compra.transaccionId} hover>
-                              <TableCell>
-                                <Box>
+                          {filteredVerifiedCompras.length > 0 ? (
+                            filteredVerifiedCompras.map((compra) => (
+                              <TableRow key={compra.transaccionId} hover>
+                                <TableCell>
+                                  <Box>
+                                    <Chip 
+                                      label={`${compra.cantidadTickets} ticket${compra.cantidadTickets > 1 ? 's' : ''}`}
+                                      color="success"
+                                      variant="outlined"
+                                      sx={{ fontWeight: 'bold', mb: 0.5 }}
+                                    />
+                                    <Typography variant="body2" sx={{ color: '#718096', fontSize: '0.75rem' }}>
+                                      ID: {compra.transaccionId.substring(0, 8)}...
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                      {compra.comprador.nombre}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#718096' }}>
+                                      {compra.comprador.cedula || 'Sin cédula'}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Box>
+                                    <Typography variant="body2">
+                                      {compra.comprador.email}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#718096' }}>
+                                      {compra.comprador.telefono || 'Sin teléfono'}
+                                    </Typography>
+                                </Box>
+                                </TableCell>
+                                <TableCell>
                                   <Chip 
-                                    label={`${compra.cantidadTickets} ticket${compra.cantidadTickets > 1 ? 's' : ''}`}
-                                    color="success"
-                                    variant="outlined"
-                                    sx={{ fontWeight: 'bold', mb: 0.5 }}
-                                  />
-                                  <Typography variant="body2" sx={{ color: '#718096', fontSize: '0.75rem' }}>
-                                    ID: {compra.transaccionId.substring(0, 8)}...
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>
-                                <Box>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                                    {compra.comprador.nombre}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ color: '#718096' }}>
-                                    {compra.comprador.cedula || 'Sin cédula'}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>
-                                <Box>
-                                  <Typography variant="body2">
-                                    {compra.comprador.email}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ color: '#718096' }}>
-                                    {compra.comprador.telefono || 'Sin teléfono'}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>
-                                <Chip 
-                                  label={formatearMetodoPago(compra.metodoPago)}
-                                  size="small"
-                                  color="secondary"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Tooltip title={compra.numerosTickets.sort((a, b) => a - b).join(', ')}>
-                                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                                    {compra.numerosTickets.length} número(s) - ({compra.numerosTickets.join(', ')})
-                                  </Typography>
-                                </Tooltip>
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2">
-                                  {compra.verificadoPor || 'Sistema'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2">
-                                  {compra.fechaVerificacion ? new Date(compra.fechaVerificacion).toLocaleDateString() : 'N/A'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Tooltip title="Ver Detalles">
-                                  <IconButton
+                                    label={formatearMetodoPago(compra.metodoPago)}
                                     size="small"
-                                    onClick={() => handleOpenDetails(compra)}
-                                    sx={{ color: '#1976d2' }}
-                                  >
-                                    <Visibility />
-                                  </IconButton>
-                                </Tooltip>
+                                    color="secondary"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Tooltip title={compra.numerosTickets.sort((a, b) => a - b).join(', ')}>
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                      {compra.numerosTickets.length} número(s)
+                                    </Typography>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {compra.verificadoPor || 'Sistema'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {compra.fechaVerificacion ? new Date(compra.fechaVerificacion).toLocaleDateString() : 'N/A'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Tooltip title="Ver Detalles">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleOpenDetails(compra)}
+                                        sx={{ color: '#1976d2' }}
+                                      >
+                                        <Visibility />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Cancelar Compra">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleOpenConfirmation(compra, 'cancel')}
+                                        disabled={canceling}
+                                        sx={{ color: '#f44336' }}
+                                      >
+                                        <Block />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                                {searchTerm ? (
+                                  <>
+                                    <Search sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
+                                    <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
+                                      No se encontraron compras
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
+                                      No hay compras verificadas que coincidan con "{searchTerm}"
+                                    </Typography>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Cancel sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
+                                    <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
+                                      No hay compras verificadas
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
+                                      Las compras verificadas aparecerán aquí
+                                    </Typography>
+                                  </>
+                                )}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}
                         </TableBody>
                       </Table>
                     </TableContainer>
 
-                    {verifiedCompras.length === 0 && (
-                      <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <Cancel sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
-                        <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
-                          No hay compras verificadas
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
-                          Las compras verificadas aparecerán aquí
-                        </Typography>
-                      </Box>
-                    )}
-
                     {/* Paginación para compras verificadas */}
-                    {verifiedTotalPages > 1 && (
+                    {verifiedTotalPages > 1 && !searchTerm && (
                       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                         <Pagination
                           count={verifiedTotalPages}
                           page={verifiedPage}
                           onChange={handleVerifiedPageChange}
+                          color="primary"
+                        />
+                      </Box>
+                    )}
+                  </>
+                )}
+              </Box>
+            )}
+
+            {/* NUEVA Pestaña de Compras Canceladas/Rechazadas */}
+            {currentTab === 2 && (
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                  <Typography variant="h6" sx={{ color: '#f44336' }}>
+                    Compras Canceladas/Rechazadas
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#718096' }}>
+                    Página {canceledPage} de {canceledTotalPages} • {canceledTotal} compras canceladas
+                  </Typography>
+                </Box>
+                
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress sx={{ color: '#FF6B35' }} />
+                  </Box>
+                ) : (
+                  <>
+                    <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
+                      <Table>
+                        <TableHead sx={{ backgroundColor: '#ffebee' }}>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Compra Original</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Comprador Original</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Contacto</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Método Pago</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Tickets Liberados</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Razón</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Fecha Cancelación</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Cancelado Por</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {filteredCanceledCompras.length > 0 ? (
+                            filteredCanceledCompras.map((compra) => (
+                              <TableRow key={compra.transaccionIdOriginal} hover>
+                                <TableCell>
+                                  <Box>
+                                    <Chip 
+                                      label={`${compra.cantidadTickets} ticket${compra.cantidadTickets > 1 ? 's' : ''}`}
+                                      color="error"
+                                      variant="outlined"
+                                      sx={{ fontWeight: 'bold', mb: 0.5 }}
+                                    />
+                                    <Typography variant="body2" sx={{ color: '#718096', fontSize: '0.75rem' }}>
+                                      ID: {compra.transaccionIdOriginal.substring(0, 8)}...
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                      {compra.comprador.nombre}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#718096' }}>
+                                      {compra.comprador.cedula || 'Sin cédula'}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Box>
+                                    <Typography variant="body2">
+                                      {compra.comprador.email}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#718096' }}>
+                                      {compra.comprador.telefono || 'Sin teléfono'}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip 
+                                    label={formatearMetodoPago(compra.metodoPago)}
+                                    size="small"
+                                    color="secondary"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Tooltip title={compra.numerosTickets.sort((a, b) => a - b).join(', ')}>
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace', color: '#f44336' }}>
+                                      {compra.numerosTickets.length} número(s) liberados
+                                    </Typography>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                    {compra.razon}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {compra.fechaCancelacion ? new Date(compra.fechaCancelacion).toLocaleString() : 'N/A'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {compra.canceladoPor || 'Sistema'}
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                                {searchTerm ? (
+                                  <>
+                                    <Search sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
+                                    <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
+                                      No se encontraron compras canceladas
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
+                                      No hay compras canceladas que coincidan con "{searchTerm}"
+                                    </Typography>
+                                  </>
+                                ) : (
+                                  <>
+                                    <DoNotDisturb sx={{ fontSize: 48, color: '#e0e0e0', mb: 2 }} />
+                                    <Typography variant="h6" sx={{ color: '#9e9e9e' }}>
+                                      No hay compras canceladas
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#9e9e9e' }}>
+                                      Las compras canceladas aparecerán aquí
+                                    </Typography>
+                                  </>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    {/* Paginación para compras canceladas */}
+                    {canceledTotalPages > 1 && !searchTerm && (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                        <Pagination
+                          count={canceledTotalPages}
+                          page={canceledPage}
+                          onChange={handleCanceledPageChange}
                           color="primary"
                         />
                       </Box>
@@ -1026,17 +1452,24 @@ const AdminRaffleTickets = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Modal de Confirmación para Verificar Compra */}
+      {/* Modal de Confirmación (reutilizable para verificar y cancelar) */}
       <ConfirmationModal
         open={confirmationModal.open}
         onClose={handleCloseConfirmation}
-        onConfirm={handleVerifyCompra}
-        title="Confirmar Verificación de Compra"
+        onConfirm={confirmationModal.type === 'verify' ? handleVerifyCompra : handleCancelCompra}
+        title={
+          confirmationModal.type === 'verify' 
+            ? "Confirmar Verificación de Compra" 
+            : "Confirmar Cancelación de Compra"
+        }
         message={
           confirmationModal.compraData ? (
             <Box>
               <Typography variant="body1" sx={{ mb: 1 }}>
-                ¿Estás seguro de que deseas verificar esta compra completa?
+                {confirmationModal.type === 'verify' 
+                  ? "¿Estás seguro de que deseas verificar esta compra completa?"
+                  : "¿Estás seguro de que deseas cancelar esta compra? Los tickets serán liberados y podrán ser comprados nuevamente."
+                }
               </Typography>
               <Box sx={{ backgroundColor: '#f5f5f5', p: 2, borderRadius: 1 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
@@ -1058,18 +1491,30 @@ const AdminRaffleTickets = () => {
                   Método de pago: {confirmationModal.compraData.metodoPago}
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ mt: 1, color: '#FF9800', fontWeight: 'bold' }}>
-                Esta acción verificará {confirmationModal.compraData.cantidadTickets} ticket(s) y enviará {confirmationModal.compraData.cantidadTickets} email(s) de confirmación.
+              <Typography variant="body2" sx={{ mt: 1, 
+                color: confirmationModal.type === 'verify' ? '#FF9800' : '#f44336', 
+                fontWeight: 'bold' 
+              }}>
+                {confirmationModal.type === 'verify' 
+                  ? `Esta acción verificará ${confirmationModal.compraData.cantidadTickets} ticket(s) y enviará ${confirmationModal.compraData.cantidadTickets} email(s) de confirmación.`
+                  : `Esta acción liberará ${confirmationModal.compraData.cantidadTickets} ticket(s) y los volverá a poner disponibles para la venta.`
+                }
               </Typography>
             </Box>
           ) : (
-            "¿Estás seguro de que deseas verificar esta compra?"
+            confirmationModal.type === 'verify' 
+              ? "¿Estás seguro de que deseas verificar esta compra?"
+              : "¿Estás seguro de que deseas cancelar esta compra?"
           )
         }
-        confirmText={`Verificar ${confirmationModal.compraData?.cantidadTickets || 0} Ticket(s)`}
+        confirmText={
+          confirmationModal.type === 'verify' 
+            ? `Verificar ${confirmationModal.compraData?.cantidadTickets || 0} Ticket(s)`
+            : `Cancelar ${confirmationModal.compraData?.cantidadTickets || 0} Ticket(s)`
+        }
         cancelText="Cancelar"
-        loading={verifying}
-        severity="warning"
+        loading={confirmationModal.type === 'verify' ? verifying : canceling}
+        severity={confirmationModal.type === 'verify' ? 'warning' : 'error'}
       />
     </Container>
   );
